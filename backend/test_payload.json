@@ -1,0 +1,35 @@
+{
+  "event_id": "evt_test_0002",
+  "event_type": "farm.monitoring_image.created",
+  "timestamp": "2026-08-08T12:00:00Z",
+  "farm": {
+    "agtrail_farm_id": "TEST-FARM-001",
+    "name": "Test Valley Farm",
+    "state": "Akwa Ibom",
+    "lga": "Eastern Obolo",
+    "hectares": 12.5,
+    "latitude": 4.7245,
+    "longitude": 7.9401
+  },
+  "farmer": {
+    "agtrail_farmer_id": "TEST-FARMER-001",
+    "name": "Test Farmer",
+    "phone": "08000000000"
+  },
+  "crop_cycle": {
+    "agtrail_cycle_id": "CYC-TEST-001",
+    "crop": "Rice",
+    "variety": "Faro 44",
+    "planted_date": "2026-07-02",
+    "status": "planted"
+  },
+  "operation_context": {
+    "logged_operation_type": "planting"
+  },
+  "image": {
+    "url": "https://example.com/test-image.jpg",
+    "captured_at": "2026-08-08T11:55:00Z",
+    "latitude": 4.7246,
+    "longitude": 7.9403
+  }
+}

@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+mlflow/
+
+# Environment
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Node
+node_modules/
+.next/
+.expo/
+dist/
+build/
+
+# ML / Data
+# ML / Data
+ml/datasets/raw/*
+!ml/datasets/raw/*/
+ml/datasets/processed/*
+!ml/datasets/processed/*/
+ml/datasets/labeled/*
+!ml/datasets/labeled/*/
+!ml/datasets/**/.gitkeep
+ml/mlflow/*
+!ml/mlflow/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.h5
+
+# Infra
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/settings.json
