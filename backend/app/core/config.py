@@ -16,12 +16,14 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
+    DB_SSL_MODE: str = "prefer"
 
     @property
     def DATABASE_URL(self) -> str:
         return (
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"?sslmode={self.DB_SSL_MODE}"
         )
 
     # Cloud Storage
