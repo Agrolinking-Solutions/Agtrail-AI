@@ -31,3 +31,5 @@ google-cloud-storage==2.16.0
 # Utils
 python-dotenv==1.0.1
 structlog==24.1.0
+
+setuptools==69.5.1
