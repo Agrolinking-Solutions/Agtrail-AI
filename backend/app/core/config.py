@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "AgTrail AI"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    ENABLE_DOCS: bool = False
     SECRET_KEY: str
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 

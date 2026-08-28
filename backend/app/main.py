@@ -8,7 +8,7 @@ app = FastAPI(
     title=settings.APP_NAME,
     version="0.1.0",
     description="AI-powered farm monitoring and traceability system",
-    docs_url="/docs" if settings.DEBUG else None,
+    docs_url="/docs" if settings.ENABLE_DOCS else None,
 )
 
 app.add_middleware(
