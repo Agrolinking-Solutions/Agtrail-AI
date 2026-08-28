@@ -1,5 +1,7 @@
 from datetime import date, datetime
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal, Union
+
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class WebhookFarm(BaseModel):
@@ -37,12 +39,37 @@ class WebhookImage(BaseModel):
     longitude: float | None = None
 
 
-class AgtrailWebhookPayload(BaseModel):
+class FarmCreatedPayload(BaseModel):
     event_id: str
-    event_type: str
+    event_type: Literal["farm.created"]
+    timestamp: datetime
+    farm: WebhookFarm
+    farmer: WebhookFarmer
+
+
+class CropCycleCreatedPayload(BaseModel):
+    event_id: str
+    event_type: Literal["farm.crop_cycle.created"]
+    timestamp: datetime
+    farm: WebhookFarm
+    farmer: WebhookFarmer
+    crop_cycle: WebhookCropCycle
+
+
+class MonitoringImageCreatedPayload(BaseModel):
+    event_id: str
+    event_type: Literal["farm.monitoring_image.created"]
     timestamp: datetime
     farm: WebhookFarm
     farmer: WebhookFarmer
     crop_cycle: WebhookCropCycle
     operation_context: WebhookOperationContext | None = None
     image: WebhookImage
+
+
+AgtrailWebhookEvent = Annotated[
+    Union[FarmCreatedPayload, CropCycleCreatedPayload, MonitoringImageCreatedPayload],
+    Field(discriminator="event_type"),
+]
+
+agtrail_webhook_adapter: TypeAdapter = TypeAdapter(AgtrailWebhookEvent)

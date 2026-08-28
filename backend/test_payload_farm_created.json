@@ -1,0 +1,19 @@
+{
+  "event_id": "evt_test_farm_created_001",
+  "event_type": "farm.created",
+  "timestamp": "2026-08-23T10:00:00Z",
+  "farm": {
+    "agtrail_farm_id": "TEST-FARM-002",
+    "name": "New Test Farm",
+    "state": "Oyo",
+    "lga": "Ibadan North",
+    "hectares": 5.0,
+    "latitude": 7.3775,
+    "longitude": 3.9470
+  },
+  "farmer": {
+    "agtrail_farmer_id": "TEST-FARMER-002",
+    "name": "Second Test Farmer",
+    "phone": "08011111111"
+  }
+}
