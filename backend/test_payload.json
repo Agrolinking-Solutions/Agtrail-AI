@@ -1,5 +1,5 @@
 {
-  "event_id": "evt_test_0003",
+  "event_id": "evt_test_0004",
   "event_type": "farm.monitoring_image.created",
   "timestamp": "2026-08-08T12:00:00Z",
   "farm": {
