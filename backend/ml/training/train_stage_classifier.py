@@ -11,6 +11,7 @@ until real labeled data exists in meaningful volume, its job right now
 is to prove the training pipeline itself works end to end.
 """
 
+import json
 import argparse
 from pathlib import Path
 
@@ -127,6 +128,13 @@ def train(epochs: int, batch_size: int, learning_rate: float):
                   f"| val_accuracy: {val_accuracy:.4f}")
 
         mlflow.pytorch.log_model(model, "model")
+
+        model_export_dir = Path(__file__).resolve().parent.parent / "models"
+        model_export_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), model_export_dir / "farm_stage_classifier.pt")
+        with open(model_export_dir / "farm_stage_classifier_classes.json", "w") as f:
+            json.dump(dataset.classes, f)
+        print(f"Exported model weights and class list to {model_export_dir}")
 
     print("Training run complete, check the MLflow UI for results.")
 

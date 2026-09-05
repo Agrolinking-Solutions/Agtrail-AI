@@ -38,6 +38,8 @@ ml/datasets/labeled/*/*
 ml/mlflow/*
 !ml/mlflow/.gitkeep
 *.pt
+!backend/ml/models/farm_stage_classifier.pt
+!backend/ml/models/farm_stage_classifier_classes.json
 *.pth
 *.onnx
 *.pkl
