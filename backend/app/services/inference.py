@@ -87,9 +87,14 @@ def run_inference_for_image(image_id):
             return
 
         try:
-            response = httpx.get(image.storage_url, timeout=10.0)
+            response = httpx.get(
+                image.storage_url,
+                headers={"User-Agent": "AgtrailInferenceService/1.0 (contact: fashjohn04@gmail.com)"},
+                timeout=10.0,
+            )
             response.raise_for_status()
             pil_image = Image.open(io.BytesIO(response.content)).convert("RGB")
+
         except Exception as exc:
             print(f"[inference] Could not load image {image_id} from {image.storage_url}: {exc}")
             image.status = ImageStatus.failed
