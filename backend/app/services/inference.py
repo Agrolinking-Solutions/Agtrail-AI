@@ -91,6 +91,7 @@ def run_inference_for_image(image_id):
                 image.storage_url,
                 headers={"User-Agent": "AgtrailInferenceService/1.0 (contact: fashjohn04@gmail.com)"},
                 timeout=10.0,
+                follow_redirects=True,
             )
             response.raise_for_status()
             pil_image = Image.open(io.BytesIO(response.content)).convert("RGB")
