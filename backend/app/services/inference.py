@@ -102,30 +102,35 @@ def run_inference_for_image(image_id):
             db.commit()
             return
 
-        transform = _build_transform()
-        input_tensor = transform(pil_image).unsqueeze(0)
+        try:
+            transform = _build_transform()
+            input_tensor = transform(pil_image).unsqueeze(0)
 
-        with torch.no_grad():
-            outputs = model(input_tensor)
-            probabilities = torch.softmax(outputs, dim=1)[0]
-            predicted_index = int(torch.argmax(probabilities).item())
-            confidence = float(probabilities[predicted_index].item())
+            with torch.no_grad():
+                outputs = model(input_tensor)
+                probabilities = torch.softmax(outputs, dim=1)[0]
+                predicted_index = int(torch.argmax(probabilities).item())
+                confidence = float(probabilities[predicted_index].item())
 
-        predicted_stage = classes[predicted_index]
+            predicted_stage = classes[predicted_index]
 
-        prediction = Prediction(
-            image_id=image.id,
-            farm_id=image.visit.farm_id,
-            model_version=model_version,
-            predicted_stage=FarmStage(predicted_stage),
-            confidence=confidence,
-            raw_scores={cls: float(probabilities[i]) for i, cls in enumerate(classes)},
-        )
-        db.add(prediction)
+            prediction = Prediction(
+                image_id=image.id,
+                farm_id=image.visit.farm_id,
+                model_version=model_version,
+                predicted_stage=FarmStage(predicted_stage),
+                confidence=confidence,
+                raw_scores={cls: float(probabilities[i]) for i, cls in enumerate(classes)},
+            )
+            db.add(prediction)
 
-        image.status = ImageStatus.processed
-        db.commit()
+            image.status = ImageStatus.processed
+            db.commit()
 
-        print(f"[inference] Image {image_id} predicted as {predicted_stage} ({confidence:.2f} confidence).")
+            print(f"[inference] Image {image_id} predicted as {predicted_stage} ({confidence:.2f} confidence).")
+        except Exception as exc:
+            print(f"[inference] Prediction failed for image {image_id}: {exc!r}")
+            image.status = ImageStatus.failed
+            db.commit()
     finally:
         db.close()
