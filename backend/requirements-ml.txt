@@ -1,0 +1,4 @@
+# Training and dataset tooling, not installed in the API image.
+-r requirements.txt
+mlflow==3.16.1
+scikit-learn==1.9.1

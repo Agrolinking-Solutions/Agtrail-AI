@@ -11,7 +11,7 @@ def event_already_received(db: Session, event_id: str) -> bool:
     processing the same event twice.
     """
     existing = db.execute(
-        select(AgtrailSyncLog).where(
+        select(AgtrailSyncLog.id).where(
             AgtrailSyncLog.received_event_id == event_id,
             AgtrailSyncLog.direction == SyncDirection.inbound,
         )
@@ -22,19 +22,18 @@ def event_already_received(db: Session, event_id: str) -> bool:
 
 def record_event_received(db: Session, event_id: str, farm_id, raw_payload: dict) -> AgtrailSyncLog:
     """
-    Logs that we've received and are about to process this event.
-    Written to the database and committed before any mapping or
-    prediction work happens, so a duplicate delivery is caught even
-    if this request crashes partway through processing.
+    Logs that this event has been received and processed. Added to the
+    caller's transaction rather than committed here, so the log entry and
+    the records created from the event are saved together or not at all.
+    The unique constraint on received_event_id makes a concurrent
+    duplicate delivery fail at commit instead of being processed twice.
     """
     log_entry = AgtrailSyncLog(
         farm_id=farm_id,
         direction=SyncDirection.inbound,
         received_event_id=event_id,
-        sync_status=SyncStatus.pending,
+        sync_status=SyncStatus.success,
         payload=raw_payload,
     )
     db.add(log_entry)
-    db.commit()
-    db.refresh(log_entry)
     return log_entry

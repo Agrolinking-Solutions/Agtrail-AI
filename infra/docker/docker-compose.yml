@@ -1,3 +1,8 @@
+# Local development stack. Run from the repository root:
+#   POSTGRES_PASSWORD=<something> docker compose -f infra/docker/docker-compose.yml up
+# Paths below are relative to this file, not the repository root.
+# Ports are bound to 127.0.0.1 so nothing is reachable from other machines.
+
 services:
 
   db:
@@ -7,12 +12,12 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-agtrail_ai}
       POSTGRES_USER: ${POSTGRES_USER:-agtrail}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD before starting}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agtrail}"]
       interval: 10s
@@ -21,29 +26,35 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../../backend
       dockerfile: Dockerfile
     container_name: agtrail_backend
     restart: unless-stopped
     env_file:
-      - .env
+      - ../../backend/.env
+    environment:
+      # Points the backend at the local container rather than whatever
+      # database backend/.env names.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agtrail}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agtrail_ai}?sslmode=disable
+      ENVIRONMENT: development
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
-      - ./backend:/app
+      - ../../backend/app:/app/app
     depends_on:
       db:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.13.0
+    image: ghcr.io/mlflow/mlflow:v3.16.1
     container_name: agtrail_mlflow
     restart: unless-stopped
+    # MLflow has no login by default, keep it on localhost only.
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
-      - ./ml/mlflow:/mlflow
+      - ../../ml/mlflow:/mlflow
     command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow
 
 volumes:
