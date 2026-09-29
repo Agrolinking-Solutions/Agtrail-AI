@@ -191,3 +191,49 @@ def test_worker_run_one_returns_false_when_queue_empty(db_session):
     import app.worker as worker
 
     assert worker.run_one(worker_id="test-worker") is False
+
+
+def test_run_until_empty_drains_the_queue_and_stops(db_session, monkeypatch):
+    from app.models.job import Job, JobStatus
+    from app.services.job_queue import enqueue
+
+    import app.worker as worker
+
+    seen = []
+    monkeypatch.setitem(worker.HANDLERS, "run_inference", lambda payload: seen.append(payload["image_id"]))
+
+    for image_id in ("a", "b", "c"):
+        enqueue(db_session, "run_inference", {"image_id": image_id})
+    db_session.commit()
+
+    processed = worker.run_until_empty(worker_id="cron-worker")
+
+    assert processed == 3
+    assert sorted(seen) == ["a", "b", "c"]
+    jobs = db_session.execute(select(Job)).scalars().all()
+    assert all(job.status == JobStatus.succeeded for job in jobs)
+    # Nothing left to claim, a second call is a no-op rather than hanging.
+    assert worker.run_until_empty(worker_id="cron-worker") == 0
+
+
+def test_run_until_empty_requeues_stale_jobs_first(db_session):
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.job import JobStatus
+    from app.services.job_queue import enqueue, claim_next
+
+    import app.worker as worker
+
+    enqueue(db_session, "run_inference", {"image_id": "abc"})
+    db_session.commit()
+    stuck = claim_next(db_session, job_types=["run_inference"], worker_id="dead-worker")
+    stuck.locked_at = datetime.now(timezone.utc) - timedelta(seconds=700)
+    db_session.commit()
+
+    # No handler swap here: the real _handle_run_inference will raise
+    # (image "abc" doesn't exist), which is fine, it only needs to prove
+    # the stale job was picked up at all, not that it succeeds.
+    worker.run_until_empty(worker_id="cron-worker")
+
+    db_session.refresh(stuck)
+    assert stuck.status != JobStatus.running

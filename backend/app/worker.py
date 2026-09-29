@@ -1,13 +1,18 @@
 """
-Polls the jobs table and runs whatever is due. Run one or more of these
-as long-lived processes (see infra/docker/docker-compose*.yml); they
-coordinate safely through Postgres row locks, so scaling up is just
-starting more of them.
+Processes jobs from the queue. Two ways to run this:
 
-Usage:
-    python -m app.worker
+    python -m app.worker            # long-running: polls forever
+    python -m app.worker --once     # cron mode: drains the queue, then exits
+
+Use --once from a scheduled job (e.g. a Render Cron Job every few
+minutes) instead of paying for an always-on worker process. Predictions
+then lag by up to the schedule's interval rather than landing within
+seconds, which is an acceptable trade for the cost saving at low volume.
+Either mode coordinates safely with the other through Postgres row
+locks, so switching later doesn't require touching anything else.
 """
 
+import argparse
 import logging
 import os
 import signal
@@ -64,8 +69,38 @@ def run_one(worker_id: str = WORKER_ID) -> bool:
         return True
 
 
+def run_until_empty(worker_id: str = WORKER_ID) -> int:
+    """
+    Processes due jobs until none are left, then returns. For a scheduled
+    (cron) invocation rather than a long-running process: also requeues
+    any stale jobs first, since there's no ongoing loop to do that
+    periodically between runs.
+    """
+    with SessionLocal() as db:
+        requeue_stale(db)
+
+    processed = 0
+    while run_one(worker_id):
+        processed += 1
+    return processed
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--once", action="store_true",
+        help="Drain the queue once and exit, instead of polling forever. For cron-style scheduling.",
+    )
+    args = parser.parse_args()
+
     configure_logging()
+
+    if args.once:
+        logger.info("Worker %s starting in --once mode.", WORKER_ID)
+        processed = run_until_empty()
+        logger.info("Worker %s processed %d job(s), queue empty, exiting.", WORKER_ID, processed)
+        return
+
     logger.info("Worker %s starting, handling: %s", WORKER_ID, list(HANDLERS))
 
     shutdown = {"requested": False}
