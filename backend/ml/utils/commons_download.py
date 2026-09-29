@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import csv
+import os
 import time
 from pathlib import Path
 
@@ -18,9 +19,21 @@ import httpx
 from urllib.parse import urlparse
 
 COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
-HEADERS = {"User-Agent": "AgtrailDatasetCollector/1.0 (contact: fashjohn04@gmail.com)"}
+# Wikimedia asks for a contact address in the User-Agent, set CONTACT_EMAIL.
+HEADERS = {"User-Agent": f"AgtrailDatasetCollector/1.0 (contact: {os.environ.get('CONTACT_EMAIL', 'unset')})"}
 
 DATA_ROOT = Path(__file__).resolve().parents[3] / "ml" / "datasets" / "raw"
+
+# Same rule as the Openverse script: this data feeds a commercial product,
+# so NonCommercial (NC) and NoDerivatives (ND) licenses are excluded.
+ALLOWED_LICENSE_PREFIXES = ("cc0", "cc by", "cc-by", "public domain", "pd")
+
+
+def license_allowed(license_name: str) -> bool:
+    name = license_name.strip().lower()
+    if "nc" in name.replace("-", " ").split() or "nd" in name.replace("-", " ").split():
+        return False
+    return name.startswith(ALLOWED_LICENSE_PREFIXES)
 
 
 def search_files(search_term: str, limit: int):
@@ -31,7 +44,8 @@ def search_files(search_term: str, limit: int):
         "srnamespace": 6,  # File namespace
         "srlimit": limit,
         "format": "json",
-    })
+    }, timeout=20.0)
+    resp.raise_for_status()
     data = resp.json()
     return [r["title"] for r in data.get("query", {}).get("search", [])]
 
@@ -43,7 +57,8 @@ def get_file_info(title: str):
         "prop": "imageinfo",
         "iiprop": "url|extmetadata",
         "format": "json",
-    })
+    }, timeout=20.0)
+    resp.raise_for_status()
     data = resp.json()
     pages = data.get("query", {}).get("pages", {})
     for page in pages.values():
@@ -75,12 +90,16 @@ def download_files(titles, folder_name: str, search_term: str):
                 print(f"  Skipped {title}, no image info returned")
                 continue
 
+            if not license_allowed(info["license"]):
+                print(f"  Skipped {title}, license not allowed ({info['license']})")
+                continue
+
             ext = urlparse(info["url"]).path.split(".")[-1].lower()
             if ext not in {"jpg", "jpeg", "png"}:
                 print(f"  Skipped {title}, wrong file type ({ext})")
                 continue
 
-            safe_name = title.replace("File:", "").replace(" ", "_").replace("/", "_")
+            safe_name = title.replace("File:", "").replace(" ", "_").replace("/", "_").replace("\\", "_")
             filename = f"commons_{safe_name}"
             filepath = target_dir / filename
 

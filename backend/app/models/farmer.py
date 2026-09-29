@@ -13,10 +13,11 @@ class Farmer(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    phone: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    # Not unique, family members often share one phone.
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
     state: Mapped[str] = mapped_column(String(100), nullable=False)
     lga: Mapped[str] = mapped_column(String(100), nullable=False)
-    agtrail_farmer_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    agtrail_farmer_id: Mapped[str | None] = mapped_column(String(200), nullable=True, unique=True)
     registered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

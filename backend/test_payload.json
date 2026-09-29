@@ -1,5 +1,5 @@
 {
-  "event_id": "evt_test_0004",
+  "event_id": "evt_test_eight_real_inference",
   "event_type": "farm.monitoring_image.created",
   "timestamp": "2026-08-08T12:00:00Z",
   "farm": {
@@ -27,7 +27,7 @@
     "logged_operation_type": "planting"
   },
   "image": {
-    "url": "https://example.com/test-image.jpg",
+    "url": "https://picsum.photos/400",
     "captured_at": "2026-08-08T11:55:00Z",
     "latitude": 4.7246,
     "longitude": 7.9403

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Float, DateTime, ForeignKey, func, Enum
+from sqlalchemy import String, Float, Boolean, DateTime, ForeignKey, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from geoalchemy2 import Geometry
@@ -28,11 +28,16 @@ class Farm(Base):
     coordinates: Mapped[object | None] = mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=True
     )
+    boundary: Mapped[object | None] = mapped_column(
+        Geometry(geometry_type="POLYGON", srid=4326), nullable=True
+    )
+    boundary_mapped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    boundary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     commodity: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[FarmStatus] = mapped_column(
         Enum(FarmStatus), default=FarmStatus.active, nullable=False
     )
-    agtrail_farm_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    agtrail_farm_id: Mapped[str | None] = mapped_column(String(200), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

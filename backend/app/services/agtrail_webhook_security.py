@@ -29,4 +29,9 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str | None) -> b
 
     # compare_digest prevents timing attacks, never compare signatures
     # with a plain == check.
-    return hmac.compare_digest(expected_signature, signature_header)
+    # Compared as bytes, a str containing non-ASCII characters would make
+    # compare_digest raise instead of returning False.
+    return hmac.compare_digest(
+        expected_signature.encode("utf-8"),
+        signature_header.strip().encode("utf-8"),
+    )

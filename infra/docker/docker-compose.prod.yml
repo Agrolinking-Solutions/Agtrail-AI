@@ -1,0 +1,75 @@
+# Production API container. The database is a managed Postgres (with
+# PostGIS) configured through DATABASE_URL in backend/.env or the host's
+# secret store, it is not run here. Put a TLS-terminating reverse proxy
+# or the platform's load balancer in front of port 8000.
+#
+#   docker compose -f infra/docker/docker-compose.prod.yml up -d --build
+
+services:
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: agtrail_backend
+    restart: always
+    env_file:
+      - ../../backend/.env
+    environment:
+      ENVIRONMENT: production
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  # Runs classification jobs the backend enqueues into the jobs table
+  # (app/worker.py). Scale by adding replicas; workers coordinate through
+  # Postgres row locks (SELECT ... FOR UPDATE SKIP LOCKED), no broker needed.
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - ../../backend/.env
+    environment:
+      ENVIRONMENT: production
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: python -m app.worker
+
+  # Safety net: requeues jobs orphaned by a worker that died mid-job, and
+  # enqueues a job for any pending image that somehow has none. The worker
+  # above already does the first of these on every poll cycle; this covers
+  # the case where every worker is down.
+  reprocess:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - ../../backend/.env
+    environment:
+      ENVIRONMENT: production
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: sh -c "while true; do python -m app.jobs.reprocess_images; sleep 900; done"

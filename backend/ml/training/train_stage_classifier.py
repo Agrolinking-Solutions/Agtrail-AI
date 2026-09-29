@@ -13,13 +13,16 @@ is to prove the training pipeline itself works end to end.
 
 import json
 import argparse
+import os
+import random
+from collections import Counter
 from pathlib import Path
 
 import mlflow
 import mlflow.pytorch
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, models, transforms
 
 STAGE_CLASSES = [
@@ -34,15 +37,48 @@ STAGE_CLASSES = [
 ]
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "ml" / "datasets" / "raw"
-MLFLOW_TRACKING_URI = "http://localhost:5000"
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+NORMALIZE = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
 
 def build_transforms():
+    # Must match the transform used for inference in app/services/inference.py.
     return transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        NORMALIZE,
     ])
+
+
+def build_train_transforms():
+    # Random variation stretches a small dataset further. Only applied to
+    # the training split, validation uses the plain inference transform.
+    return transforms.Compose([
+        transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.ToTensor(),
+        NORMALIZE,
+    ])
+
+
+def stratified_split(targets: list[int], val_fraction: float, seed: int) -> tuple[list[int], list[int]]:
+    """
+    Splits indices so each class keeps roughly the same share in the
+    validation set. Classes with a single image go to training only.
+    """
+    rng = random.Random(seed)
+    by_class: dict[int, list[int]] = {}
+    for index, target in enumerate(targets):
+        by_class.setdefault(target, []).append(index)
+
+    train_indices, val_indices = [], []
+    for indices in by_class.values():
+        rng.shuffle(indices)
+        val_count = max(1, round(len(indices) * val_fraction)) if len(indices) > 1 else 0
+        val_indices.extend(indices[:val_count])
+        train_indices.extend(indices[val_count:])
+    return train_indices, val_indices
 
 
 def build_model(num_classes: int) -> nn.Module:
@@ -52,7 +88,10 @@ def build_model(num_classes: int) -> nn.Module:
     return model
 
 
-def train(epochs: int, batch_size: int, learning_rate: float):
+def train(epochs: int, batch_size: int, learning_rate: float, seed: int):
+    random.seed(seed)
+    torch.manual_seed(seed)
+
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment("farm-stage-classifier")
 
@@ -66,11 +105,21 @@ def train(epochs: int, batch_size: int, learning_rate: float):
               f"stage subfolder before training a real model.")
         return
 
+    # Two views of the same folder, so training and validation images get
+    # different transforms while sharing one index split.
     dataset = datasets.ImageFolder(root=str(DATA_DIR), transform=build_transforms())
+    train_view = datasets.ImageFolder(root=str(DATA_DIR), transform=build_train_transforms())
 
-    val_size = max(1, int(0.2 * len(dataset)))
-    train_size = len(dataset) - val_size
-    train_set, val_set = random_split(dataset, [train_size, val_size])
+    unknown_classes = set(dataset.classes) - set(STAGE_CLASSES)
+    if unknown_classes:
+        raise SystemExit(f"Folders not matching a FarmStage value: {sorted(unknown_classes)}")
+
+    class_counts = Counter(dataset.classes[t] for t in dataset.targets)
+    print("Images per class:", dict(sorted(class_counts.items())))
+
+    train_indices, val_indices = stratified_split(dataset.targets, val_fraction=0.2, seed=seed)
+    train_set = Subset(train_view, train_indices)
+    val_set = Subset(dataset, val_indices)
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size)
@@ -88,6 +137,7 @@ def train(epochs: int, batch_size: int, learning_rate: float):
             "learning_rate": learning_rate,
             "num_classes": len(dataset.classes),
             "total_images": len(dataset),
+            "seed": seed,
             "classes": ",".join(dataset.classes),
         })
 
@@ -144,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    train(epochs=args.epochs, batch_size=args.batch_size, learning_rate=args.learning_rate)
+    train(epochs=args.epochs, batch_size=args.batch_size, learning_rate=args.learning_rate, seed=args.seed)

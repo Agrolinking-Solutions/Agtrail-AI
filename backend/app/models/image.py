@@ -36,7 +36,7 @@ class FarmImage(Base):
         Enum(ImageSource), default=ImageSource.agent_mobile, nullable=False
     )
     status: Mapped[ImageStatus] = mapped_column(
-        Enum(ImageStatus), default=ImageStatus.pending, nullable=False
+        Enum(ImageStatus), default=ImageStatus.pending, nullable=False, index=True
     )
     source_payload_raw: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Float, Boolean, DateTime, ForeignKey, Enum, func
+from sqlalchemy import String, Float, Boolean, DateTime, ForeignKey, Enum, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.core.database import Base
@@ -21,6 +21,7 @@ class FarmStage(str, enum.Enum):
 
 class Prediction(Base):
     __tablename__ = "predictions"
+    __table_args__ = (Index("ix_predictions_farm_id_predicted_at", "farm_id", "predicted_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -41,6 +42,9 @@ class Prediction(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    corrected_stage: Mapped[FarmStage | None] = mapped_column(Enum(FarmStage), nullable=True)
+    verified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     image: Mapped["FarmImage"] = relationship("FarmImage", back_populates="predictions")
     farm: Mapped["Farm"] = relationship("Farm", back_populates="predictions")
