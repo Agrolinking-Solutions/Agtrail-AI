@@ -35,6 +35,7 @@ class WebhookCropCycle(BaseModel):
 
 
 class WebhookOperationContext(BaseModel):
+    agtrail_operation_id: str | None = Field(default=None, max_length=200)
     logged_operation_type: str | None = Field(default=None, max_length=100)
 
 
