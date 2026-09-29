@@ -76,25 +76,14 @@ def db_session(migrated_db):
     with migrated_db.begin() as conn:
         conn.execute(text(
             "TRUNCATE agtrail_sync_log, predictions, farm_images, farm_visits, "
-            "monitoring_cycles, farms, farmers, agents CASCADE"
+            "monitoring_cycles, farms, farmers, agents, jobs CASCADE"
         ))
     with SessionLocal() as session:
         yield session
 
 
 @pytest.fixture
-def inference_calls(monkeypatch):
-    """Replaces background inference, so tests don't load torch or fetch URLs."""
-    calls = []
-    monkeypatch.setattr(
-        "app.api.routes.agtrail_webhook.run_inference_for_image",
-        lambda image_id: calls.append(image_id),
-    )
-    return calls
-
-
-@pytest.fixture
-def client(db_session, inference_calls):
+def client(db_session):
     from fastapi.testclient import TestClient
 
     from app.main import app
@@ -111,3 +100,14 @@ def post_event(client, payload: dict, signature: str | None = "auto"):
     elif signature is not None:
         headers["X-AgTrail-Signature"] = signature
     return client.post("/webhooks/agtrail/farm-event", content=body, headers=headers)
+
+
+def queued_image_ids(db_session, job_type="run_inference") -> list[str]:
+    """image_id values from queued/running jobs of the given type, for
+    asserting the webhook enqueued work without actually running inference."""
+    from sqlalchemy import select
+
+    from app.models.job import Job
+
+    jobs = db_session.execute(select(Job).where(Job.job_type == job_type)).scalars().all()
+    return [job.payload["image_id"] for job in jobs]

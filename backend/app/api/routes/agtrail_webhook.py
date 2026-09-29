@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from geoalchemy2 import WKTElement
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -22,7 +22,7 @@ from app.schemas.agtrail_webhook import (
 )
 from app.services.agtrail_webhook_security import verify_webhook_signature
 from app.services.agtrail_webhook_idempotency import event_already_received, record_event_received
-from app.services.inference import run_inference_for_image
+from app.services.job_queue import JOB_RUN_INFERENCE, enqueue
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,14 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
         )
         db.add(image)
         db.flush()
+
+        # Enqueued in the same transaction as the image row, not run as a
+        # FastAPI BackgroundTask: if the process crashes right after this
+        # request commits, the job survives in the database and a worker
+        # (app/worker.py) picks it up, instead of the image being silently
+        # stuck pending forever.
+        enqueue(db, JOB_RUN_INFERENCE, {"image_id": str(image.id)})
+
         return farm, image
 
     raise HTTPException(status_code=422, detail="Unsupported event type")
@@ -161,7 +169,6 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
 @router.post("/farm-event")
 async def receive_agtrail_farm_event(
     request: Request,
-    background_tasks: BackgroundTasks,
     x_agtrail_signature: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -190,8 +197,5 @@ async def receive_agtrail_farm_event(
             return {"status": "already_processed", "event_id": payload.event_id}
         logger.warning("Conflict saving event %s, asking AgTrail to retry.", payload.event_id)
         raise HTTPException(status_code=409, detail="Conflicting concurrent update, retry later")
-
-    if image is not None:
-        background_tasks.add_task(run_inference_for_image, image.id)
 
     return {"status": "received", "event_id": payload.event_id, "farm_id": str(farm.id)}

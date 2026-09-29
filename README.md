@@ -1,17 +1,17 @@
 # AgTrail AI
 
-Farm monitoring and traceability service for AgTrail. It receives signed
-webhooks from AgTrail (new farms, crop cycles, monitoring photos),
-classifies each photo's farming stage with an image model, and serves
-the predictions to authorised callers.
+The AI intelligence layer behind AgTrail: it receives signed webhooks from
+AgTrail (new farms, crop cycles, monitoring photos), classifies each photo's
+farming stage with an image model, and serves the predictions back to
+AgTrail. AgTrail owns the frontend and the farmer/agent data; this repo is
+the backend engine that plugs into it, not a standalone product.
 
 | Folder | Contents |
 | --- | --- |
-| `backend/` | FastAPI service, database models, Alembic migrations, ML inference |
+| `backend/` | FastAPI service, database models, Alembic migrations, ML inference, job queue |
 | `backend/ml/` | Training script, dataset download tools, exported model |
 | `ml/datasets/` | Training images (not in git) and their license log |
 | `infra/docker/` | Local and production Docker Compose files |
-| `dashboard/`, `mobile/` | Placeholders, not built yet |
 
 ## Setup
 
@@ -50,9 +50,22 @@ CI runs the tests, `pip-audit` and a gitleaks secret scan on every push.
 
 ## Background work
 
-Photo classification runs after the webhook responds. Images left
-`pending` (e.g. after a restart) are retried by
-`python -m app.jobs.reprocess_images`; schedule it every 15 minutes.
+Photo classification runs as a job on a Postgres-backed queue (`jobs`
+table), not inline in the webhook request. The webhook handler enqueues a
+`run_inference` job in the same transaction as the image row, then one or
+more worker processes claim and run jobs with `SELECT ... FOR UPDATE SKIP
+LOCKED`, so scaling up is just running more workers, no broker required.
+
+```bash
+make worker      # run one worker locally
+make reprocess   # repair tool: requeue stale jobs, catch orphaned images
+```
+
+A failed job retries with exponential backoff up to `max_attempts`, then
+is marked `dead` rather than retried forever; `last_error` on the row
+says why. `python -m app.jobs.reprocess_images` is a safety net, not the
+primary retry path, schedule it every 15 minutes in production alongside
+the worker (see `infra/docker/docker-compose.prod.yml`).
 
 ## Training
 

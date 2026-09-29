@@ -31,8 +31,31 @@ services:
         limits:
           memory: 3g
 
-  # Retries images left pending, e.g. after a restart. Replace with a
-  # real job queue once volume grows.
+  # Runs classification jobs the backend enqueues into the jobs table
+  # (app/worker.py). Scale by adding replicas; workers coordinate through
+  # Postgres row locks (SELECT ... FOR UPDATE SKIP LOCKED), no broker needed.
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - ../../backend/.env
+    environment:
+      ENVIRONMENT: production
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: python -m app.worker
+
+  # Safety net: requeues jobs orphaned by a worker that died mid-job, and
+  # enqueues a job for any pending image that somehow has none. The worker
+  # above already does the first of these on every poll cycle; this covers
+  # the case where every worker is down.
   reprocess:
     build:
       context: ../../backend

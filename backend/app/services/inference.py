@@ -7,7 +7,6 @@ from pathlib import Path
 import httpx
 import torch
 from PIL import UnidentifiedImageError
-from sqlalchemy import select
 from torchvision import models, transforms
 
 from app.core.config import settings
@@ -160,23 +159,3 @@ def run_inference_for_image(image_id):
             db.commit()
     finally:
         db.close()
-
-
-def reprocess_images(include_failed: bool = False, limit: int = 100) -> int:
-    """
-    Runs inference for images left pending, for example because the
-    process restarted before a background task ran, or no model existed
-    when the image arrived. Returns the number of images attempted.
-    """
-    statuses = [ImageStatus.pending]
-    if include_failed:
-        statuses.append(ImageStatus.failed)
-
-    with SessionLocal() as db:
-        image_ids = db.execute(
-            select(FarmImage.id).where(FarmImage.status.in_(statuses)).limit(limit)
-        ).scalars().all()
-
-    for image_id in image_ids:
-        run_inference_for_image(image_id)
-    return len(image_ids)

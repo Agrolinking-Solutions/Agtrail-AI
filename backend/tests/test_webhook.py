@@ -4,7 +4,7 @@ import copy
 
 from sqlalchemy import func, select
 
-from tests.conftest import API_KEY, load_payload, post_event, requires_db
+from tests.conftest import API_KEY, load_payload, post_event, queued_image_ids, requires_db
 
 pytestmark = requires_db
 
@@ -39,14 +39,14 @@ def test_crop_cycle_updates_commodity(client, db_session):
     assert farm.commodity == "Maize"
 
 
-def test_monitoring_image_queues_inference(client, db_session, inference_calls):
+def test_monitoring_image_queues_inference(client, db_session):
     from app.models import FarmImage, FarmVisit
 
     response = post_event(client, load_payload("test_payload.json"))
 
     assert response.status_code == 200, response.text
     image = db_session.execute(select(FarmImage)).scalar_one()
-    assert inference_calls == [image.id]
+    assert queued_image_ids(db_session) == [str(image.id)]
     assert "phone" not in image.source_payload_raw["farmer"]
     # No mapped boundary yet, so the visit can't be GPS verified.
     assert db_session.execute(select(FarmVisit)).scalar_one().gps_verified is False
@@ -70,7 +70,7 @@ def test_gps_verified_inside_mapped_boundary(client, db_session):
     assert db_session.execute(select(FarmVisit)).scalar_one().gps_verified is True
 
 
-def test_duplicate_event_ignored(client, db_session, inference_calls):
+def test_duplicate_event_ignored(client, db_session):
     from app.models import FarmImage
 
     payload = load_payload("test_payload.json")
@@ -79,7 +79,7 @@ def test_duplicate_event_ignored(client, db_session, inference_calls):
 
     assert response.json()["status"] == "already_processed"
     assert _count(db_session, FarmImage) == 1
-    assert len(inference_calls) == 1
+    assert len(queued_image_ids(db_session)) == 1
 
 
 def test_farmers_sharing_a_phone(client, db_session):

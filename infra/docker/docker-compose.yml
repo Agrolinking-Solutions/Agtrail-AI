@@ -46,6 +46,27 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # Runs classification jobs the backend enqueues (see app/worker.py and
+  # app/services/job_queue.py). Scale by running more of these; they
+  # coordinate through Postgres row locks, no other setup needed.
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: agtrail_worker
+    restart: unless-stopped
+    env_file:
+      - ../../backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agtrail}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agtrail_ai}?sslmode=disable
+      ENVIRONMENT: development
+    volumes:
+      - ../../backend/app:/app/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m app.worker
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.16.1
     container_name: agtrail_mlflow
