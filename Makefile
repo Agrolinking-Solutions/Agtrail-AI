@@ -1,6 +1,6 @@
 TEST_DATABASE_URL ?= postgresql://postgres:test@127.0.0.1:55432/postgres?sslmode=disable
 
-.PHONY: install test test-db audit migrate run worker worker-once reprocess up
+.PHONY: install test test-db audit migrate run worker worker-once reprocess sync-boundaries up
 
 install:
 	cd backend && .venv/bin/pip install torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cpu
@@ -30,6 +30,9 @@ worker-once:
 
 reprocess:
 	cd backend && .venv/bin/python -m app.jobs.reprocess_images
+
+sync-boundaries:
+	cd backend && .venv/bin/python -m app.jobs.sync_boundaries
 
 up:
 	docker compose -f infra/docker/docker-compose.yml up --build
