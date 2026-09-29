@@ -52,20 +52,32 @@ CI runs the tests, `pip-audit` and a gitleaks secret scan on every push.
 
 Photo classification runs as a job on a Postgres-backed queue (`jobs`
 table), not inline in the webhook request. The webhook handler enqueues a
-`run_inference` job in the same transaction as the image row, then one or
-more worker processes claim and run jobs with `SELECT ... FOR UPDATE SKIP
-LOCKED`, so scaling up is just running more workers, no broker required.
+`run_inference` job in the same transaction as the image row, then a
+worker claims and runs jobs with `SELECT ... FOR UPDATE SKIP LOCKED`, so
+scaling up is just running more workers, no broker required.
+
+The worker runs in one of two modes:
 
 ```bash
-make worker      # run one worker locally
-make reprocess   # repair tool: requeue stale jobs, catch orphaned images
+make worker        # long-running: polls forever (python -m app.worker)
+make worker-once   # cron mode: drains the queue, then exits (--once)
+make reprocess     # repair tool: catch a pending image with no job at all
 ```
+
+In production this runs as a **scheduled job** (Render Cron Job, or any
+host's cron) calling `python -m app.worker --once` every few minutes,
+rather than an always-on process — cheaper at low volume, at the cost of
+predictions lagging by up to the schedule's interval instead of landing
+within seconds. Switch to the long-running `python -m app.worker` (no
+`--once`) if volume later justifies the always-on cost; both modes read
+the same queue and coordinate safely with each other.
 
 A failed job retries with exponential backoff up to `max_attempts`, then
 is marked `dead` rather than retried forever; `last_error` on the row
-says why. `python -m app.jobs.reprocess_images` is a safety net, not the
-primary retry path, schedule it every 15 minutes in production alongside
-the worker (see `infra/docker/docker-compose.prod.yml`).
+says why. `--once` also requeues stale (crashed-worker) jobs on every
+run, so nothing further is needed for that; `python -m app.jobs.reprocess_images`
+only remains as an edge-case safety net for a pending image that
+somehow has no job at all.
 
 ## Training
 
