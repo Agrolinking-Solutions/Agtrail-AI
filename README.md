@@ -79,6 +79,22 @@ run, so nothing further is needed for that; `python -m app.jobs.reprocess_images
 only remains as an edge-case safety net for a pending image that
 somehow has no job at all.
 
+## Farm boundaries
+
+`farms.boundary` isn't populated by the webhook (AgTrail's boundary can
+be redrawn after a farm is created, with no `farm.updated` event to
+tell us). Nothing keeps it in sync unless this runs:
+
+```bash
+make sync-boundaries   # pulls every mapped farm's polygon from AgTrail, batches of 100
+```
+
+Without this job, `boundary_mapped` stays false forever and the
+GPS-verification check on incoming photos has nothing to check against.
+Schedule it monthly (matching AgTrail's own suggested cadence, and how
+often boundaries actually change) — same Render Cron Job pattern as the
+worker, `python -m app.jobs.sync_boundaries` as the command.
+
 ## Training
 
 ```bash

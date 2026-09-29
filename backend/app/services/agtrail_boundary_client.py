@@ -5,6 +5,7 @@ import logging
 from urllib.parse import quote
 
 import httpx
+from geoalchemy2 import WKTElement
 
 from app.core.config import settings
 
@@ -119,3 +120,25 @@ def get_farm_boundaries_batch(farm_ids: list[str]) -> tuple[list[dict], list[str
     body = response.json()
     data = body.get("data", {})
     return data.get("items", []), data.get("missingIds", [])
+
+
+def geojson_polygon_to_wkt(geometry: dict) -> WKTElement:
+    """
+    Converts the GeoJSON Polygon this API returns (coordinates as
+    [lng, lat] pairs, exterior ring first) into the WKTElement our
+    Farm.boundary column expects. Interior rings (holes) are dropped, a
+    farm boundary with an actual hole cut out of it would be unusual and
+    isn't something we currently have a use for.
+    """
+    if geometry.get("type") != "Polygon":
+        raise ValueError(f"Expected a GeoJSON Polygon, got {geometry.get('type')!r}")
+
+    rings = geometry.get("coordinates") or []
+    if not rings:
+        raise ValueError("Polygon geometry has no coordinates")
+    if len(rings) > 1:
+        logger.warning("Dropping %d interior ring(s) from a farm boundary polygon.", len(rings) - 1)
+
+    exterior = rings[0]
+    points = ", ".join(f"{lng} {lat}" for lng, lat in exterior)
+    return WKTElement(f"POLYGON(({points}))", srid=4326)
