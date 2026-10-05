@@ -32,20 +32,21 @@ services:
           memory: 3g
 
   # Runs classification jobs the backend enqueues into the jobs table
-  # (app/worker.py). Scheduled rather than always-on: `--once` requeues
-  # any stale jobs, drains whatever's due, and exits, so this only costs
-  # while it's actually running instead of paying for an idle process
-  # between webhooks. Predictions lag by up to the sleep interval below
-  # rather than landing within seconds; on a host with a real cron
-  # (or Render's own Cron Job service), replace this sleep loop with an
-  # actual cron entry running `python -m app.worker --once` instead.
-  # Switch to `python -m app.worker` (no --once, restart: always) if
-  # volume grows enough to justify an always-on process.
+  # (app/worker.py). `--once` requeues any stale jobs, drains whatever's
+  # due, and exits, so this is meant to be invoked by the host's real
+  # cron, not left running: `restart: "no"` on purpose. Add this line to
+  # the VPS's crontab (adjust the path to where this repo lives):
+  #
+  #   */10 * * * * cd /opt/agtrail-ai && docker compose -f infra/docker/docker-compose.prod.yml run --rm worker >> /var/log/agtrail-worker.log 2>&1
+  #
+  # Switch to `python -m app.worker` (no --once, restart: always) as a
+  # separate service instead if volume grows enough to justify an
+  # always-on process rather than polling every 10 minutes.
   worker:
     build:
       context: ../../backend
       dockerfile: Dockerfile
-    restart: always
+    restart: "no"
     env_file:
       - ../../backend/.env
     environment:
@@ -57,25 +58,4 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    command: sh -c "while true; do python -m app.worker --once; sleep 600; done"
-
-  # Extra safety net beyond what `worker --once` already requeues on each
-  # run: catches a pending image that somehow has no job at all (e.g. one
-  # that predates this queue). Rare in practice, cheap to run occasionally.
-  reprocess:
-    build:
-      context: ../../backend
-      dockerfile: Dockerfile
-    restart: always
-    env_file:
-      - ../../backend/.env
-    environment:
-      ENVIRONMENT: production
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    command: sh -c "while true; do python -m app.jobs.reprocess_images; sleep 900; done"
+    command: python -m app.worker --once
