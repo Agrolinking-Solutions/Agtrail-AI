@@ -7,6 +7,7 @@ from app.models.image import FarmImage, ImageSource, ImageStatus
 from app.models.prediction import Prediction, FarmStage
 from app.models.sync_log import AgtrailSyncLog, SyncStatus, SyncDirection
 from app.models.job import Job, JobStatus
+from app.models.ndvi import FarmNdviObservation
 
 __all__ = [
     "Farmer", "Farm", "FarmStatus",
@@ -17,4 +18,5 @@ __all__ = [
     "Prediction", "FarmStage",
     "AgtrailSyncLog", "SyncStatus", "SyncDirection",
     "Job", "JobStatus",
+    "FarmNdviObservation",
 ]

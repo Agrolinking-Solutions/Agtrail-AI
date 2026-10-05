@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Secret for signing our outbound requests to AgTrail. Falls back to the
     # webhook secret until AgTrail issues a separate key for this direction.
     AGTRAIL_OUTBOUND_SECRET: str = ""
+
+    # Copernicus Data Space (Sentinel-2 NDVI), OAuth client credentials
+    CDSE_CLIENT_ID: str = ""
+    CDSE_CLIENT_SECRET: str = ""
     WEBHOOK_MAX_BODY_BYTES: int = 256 * 1024
 
     # Image fetching
