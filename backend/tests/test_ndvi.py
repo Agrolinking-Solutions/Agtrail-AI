@@ -53,6 +53,46 @@ def test_parse_handles_empty_response():
 
 
 @requires_db
+def test_ingest_ndvi_warns_on_large_farm_and_empty_result(db_session, monkeypatch, caplog):
+    import logging
+
+    from geoalchemy2 import WKTElement
+
+    import app.jobs.ingest_ndvi as ingest_ndvi_module
+    from app.models.farm import Farm
+    from app.models.farmer import Farmer
+
+    farmer = Farmer(full_name="Test Farmer", phone="080000000", state="Oyo", lga="Ibadan North")
+    db_session.add(farmer)
+    db_session.flush()
+    farm = Farm(
+        farmer_id=farmer.id,
+        name="Large Farm",
+        agtrail_farm_id="AGT-LARGE",
+        area_hectares=832.0,
+        boundary_mapped=True,
+        boundary=WKTElement(
+            "POLYGON((7.9 4.7, 7.99 4.7, 7.99 4.75, 7.9 4.75, 7.9 4.7))", srid=4326
+        ),
+    )
+    db_session.add(farm)
+    db_session.commit()
+
+    monkeypatch.setattr(ingest_ndvi_module, "get_access_token", lambda: "token")
+    monkeypatch.setattr(ingest_ndvi_module, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(ingest_ndvi_module, "fetch_farm_ndvi", lambda *a, **k: [])
+    monkeypatch.setattr(db_session, "close", lambda: None)
+
+    with caplog.at_level(logging.WARNING):
+        summary = ingest_ndvi_module.ingest_ndvi(date(2026, 7, 1), date(2026, 10, 1))
+
+    assert summary == {"farms": 1, "periods_written": 0, "farms_failed": 0}
+    messages = " ".join(caplog.messages)
+    assert "832.0 ha" in messages
+    assert "No NDVI periods returned" in messages
+
+
+@requires_db
 def test_upsert_is_idempotent_and_updates_existing_period(db_session):
     from app.jobs.ingest_ndvi import _upsert_periods
     from app.models.farm import Farm
