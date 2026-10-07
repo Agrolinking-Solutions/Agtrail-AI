@@ -14,6 +14,11 @@ from app.services.sentinel import default_window, fetch_farm_ndvi, get_access_to
 
 logger = logging.getLogger(__name__)
 
+# Above this, a farm is unusually large for a smallholder plot and worth a
+# second look, this caught a boundary reporting 832 ha against AgTrail's
+# typical farms (most under 1 ha).
+LARGE_FARM_HECTARES = 100
+
 
 def _mapped_farms(db: Session) -> list[tuple[Farm, dict]]:
     rows = db.execute(
@@ -55,12 +60,23 @@ def ingest_ndvi(start: date | None = None, end: date | None = None) -> dict:
         farms = _mapped_farms(db)
         summary["farms"] = len(farms)
         for farm, boundary_geojson in farms:
+            if farm.area_hectares and farm.area_hectares > LARGE_FARM_HECTARES:
+                logger.warning(
+                    "Farm %s (agtrail_farm_id %s) is %.1f ha, above the %d ha smallholder "
+                    "range, worth confirming the boundary with AgTrail.",
+                    farm.id, farm.agtrail_farm_id, farm.area_hectares, LARGE_FARM_HECTARES,
+                )
             try:
                 periods = fetch_farm_ndvi(boundary_geojson, start, end, token)
             except Exception as exc:
                 summary["farms_failed"] += 1
                 logger.warning("NDVI fetch failed for farm %s: %s", farm.id, exc)
                 continue
+            if not periods:
+                logger.warning(
+                    "No NDVI periods returned for farm %s (agtrail_farm_id %s, %s ha).",
+                    farm.id, farm.agtrail_farm_id, farm.area_hectares,
+                )
             summary["periods_written"] += _upsert_periods(db, farm, periods)
         db.commit()
 
