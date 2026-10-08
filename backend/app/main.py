@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.routes import agtrail_webhook
+from app.api.routes import farms
 from app.api.routes import predictions
 from app.core.config import settings
 from app.core.database import get_db
@@ -41,6 +42,7 @@ async def security_headers(request, call_next):
 
 
 app.include_router(predictions.router)
+app.include_router(farms.router)
 app.include_router(agtrail_webhook.router)
 
 
