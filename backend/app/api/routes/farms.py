@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import require_api_key
 from app.models.farm import Farm
 from app.models.ndvi import FarmNdviObservation
+from app.schemas.location import FarmLocationOut
 from app.schemas.ndvi import NdviObservationOut
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
 
@@ -26,6 +27,42 @@ router = APIRouter(
 # own copy, that is fine here.
 _IMAGE_CACHE: dict[tuple[uuid.UUID, str, str], tuple[float, bytes]] = {}
 _IMAGE_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+
+@router.get("/{farm_id}/location", response_model=FarmLocationOut)
+def get_farm_location(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Where the farm is, for a map that flies or pans to it: a center point
+    to navigate to, and the mapped boundary (if any) to draw as an
+    outline. This is plain location data for a basemap like Google Maps
+    or Mapbox, a different thing from the satellite imagery endpoints
+    above, AgTrail's frontend does the actual map rendering and the
+    fly-to animation with it.
+    """
+    # coordinates comes from AgTrail's farm.created event, which in
+    # practice is rarely populated; the boundary's own centroid is a
+    # reliable fallback for any farm that's actually been mapped.
+    center = func.coalesce(Farm.coordinates, func.ST_Centroid(Farm.boundary))
+    row = db.execute(
+        select(
+            Farm.id,
+            Farm.boundary_mapped,
+            func.ST_Y(center),
+            func.ST_X(center),
+            func.ST_AsGeoJSON(Farm.boundary),
+        ).where(Farm.id == farm_id)
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    farm_id_, boundary_mapped, lat, lng, boundary_geojson = row
+    return FarmLocationOut(
+        farm_id=farm_id_,
+        latitude=lat,
+        longitude=lng,
+        boundary_mapped=boundary_mapped,
+        boundary=json.loads(boundary_geojson) if boundary_geojson else None,
+    )
 
 
 @router.get("/{farm_id}/ndvi", response_model=list[NdviObservationOut])
