@@ -85,6 +85,30 @@ function evaluatePixel(s) {
 }
 """
 
+TRUE_COLOR_EVALSCRIPT = """
+//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["B02", "B03", "B04", "dataMask"] }],
+    output: { bands: 4 }
+  };
+}
+
+// Sentinel-2 L2A bands come back as reflectance, 0 to 1. Raw reflectance
+// reads dark on screen, so a gain brightens it; clamping afterward keeps
+// bright soil or rooftops from blowing out past white.
+var GAIN = 7.0;
+function clamp01(x) {
+  return Math.min(Math.max(x, 0), 1);
+}
+
+function evaluatePixel(s) {
+  return [clamp01(s.B04 * GAIN), clamp01(s.B03 * GAIN), clamp01(s.B02 * GAIN), s.dataMask];
+}
+"""
+
+IMAGE_STYLES = {"ndvi": NDVI_IMAGE_EVALSCRIPT, "true-color": TRUE_COLOR_EVALSCRIPT}
+
 
 @dataclass(frozen=True)
 class NdviPeriod:
@@ -166,15 +190,16 @@ def parse_statistics_response(payload: dict) -> list[NdviPeriod]:
     return periods
 
 
-def fetch_farm_ndvi_image(
+def fetch_farm_image(
+    evalscript: str,
     boundary_geojson: dict,
     start: date,
     end: date,
     token: str,
 ) -> bytes:
     """Renders a single PNG, the clearest composite Sentinel-2 can build
-    from the window, colored brown-to-green by NDVI. Masked outside the
-    farm boundary via dataMask as alpha."""
+    from the window, masked outside the farm boundary via dataMask as
+    alpha. The evalscript picks the style, NDVI health or true color."""
     time_range = {
         "from": datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
         "to": datetime.combine(end, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
@@ -190,7 +215,7 @@ def fetch_farm_ndvi_image(
             ],
         },
         "output": {"width": IMAGE_SIZE_PX, "height": IMAGE_SIZE_PX, "responses": [{"identifier": "default", "format": {"type": "image/png"}}]},
-        "evalscript": NDVI_IMAGE_EVALSCRIPT,
+        "evalscript": evalscript,
     }
 
     response = httpx.post(
