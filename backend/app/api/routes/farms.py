@@ -1,7 +1,9 @@
+import json
+import time
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,12 +11,20 @@ from app.core.security import require_api_key
 from app.models.farm import Farm
 from app.models.ndvi import FarmNdviObservation
 from app.schemas.ndvi import NdviObservationOut
+from app.services.sentinel import fetch_farm_ndvi_image, get_access_token
 
 router = APIRouter(
     prefix="/farms",
     tags=["farms"],
     dependencies=[Depends(require_api_key)],
 )
+
+# In-process cache keyed by (farm_id, period_start): a Copernicus render
+# costs processing quota, and the same farm/period is rendered on every
+# page view until the underlying imagery changes, which is at most daily.
+# Per-worker only, each uvicorn worker has its own copy, that is fine here.
+_IMAGE_CACHE: dict[tuple[uuid.UUID, str], tuple[float, bytes]] = {}
+_IMAGE_CACHE_TTL_SECONDS = 6 * 60 * 60
 
 
 @router.get("/{farm_id}/ndvi", response_model=list[NdviObservationOut])
@@ -35,3 +45,40 @@ def get_ndvi_trend(
     ).scalars().all()
 
     return list(reversed(observations))
+
+
+@router.get("/{farm_id}/ndvi-image")
+def get_ndvi_image(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    A colored satellite image of the farm, brown for bare soil to green
+    for dense vegetation, clipped to the farm boundary with everything
+    else transparent. Covers the same window as the farm's latest NDVI
+    observation, so the image and the trend chart agree on what period
+    they're both showing.
+    """
+    farm = db.get(Farm, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    latest = db.execute(
+        select(FarmNdviObservation)
+        .where(FarmNdviObservation.farm_id == farm_id)
+        .order_by(FarmNdviObservation.period_start.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if latest is None:
+        raise HTTPException(status_code=404, detail="No NDVI data for this farm yet")
+
+    cache_key = (farm_id, latest.period_start.isoformat())
+    cached = _IMAGE_CACHE.get(cache_key)
+    if cached and time.monotonic() - cached[0] < _IMAGE_CACHE_TTL_SECONDS:
+        return Response(content=cached[1], media_type="image/png")
+
+    boundary_geojson = json.loads(
+        db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm_id)).scalar_one()
+    )
+    token = get_access_token()
+    png_bytes = fetch_farm_ndvi_image(boundary_geojson, latest.period_start, latest.period_end, token)
+    _IMAGE_CACHE[cache_key] = (time.monotonic(), png_bytes)
+
+    return Response(content=png_bytes, media_type="image/png")
