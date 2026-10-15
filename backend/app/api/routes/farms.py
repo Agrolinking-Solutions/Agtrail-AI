@@ -12,6 +12,7 @@ from app.models.farm import Farm
 from app.models.ndvi import FarmNdviObservation
 from app.schemas.location import FarmLocationOut
 from app.schemas.ndvi import NdviObservationOut
+from app.services.mapbox import fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
 
 router = APIRouter(
@@ -88,20 +89,42 @@ def get_ndvi_trend(
 @router.get("/{farm_id}/ndvi-image")
 def get_ndvi_image(
     farm_id: uuid.UUID,
-    style: str = Query(default="ndvi", pattern="^(ndvi|true-color)$"),
+    style: str = Query(default="ndvi", pattern="^(ndvi|true-color|mapbox)$"),
     db: Session = Depends(get_db),
 ):
     """
     A satellite image of the farm, clipped to the farm boundary with
-    everything else transparent. Two styles: "ndvi" colors brown for bare
-    soil to green for dense vegetation; "true-color" is the ordinary RGB
-    view, how the farm actually looks from above. Both cover the same
-    window as the farm's latest NDVI observation, so whichever style is
-    shown agrees with the trend chart on what period it's showing.
+    everything else transparent. Three styles: "ndvi" colors brown for
+    bare soil to green for dense vegetation; "true-color" is the
+    ordinary RGB view from Sentinel-2; "mapbox" is high-resolution
+    commercial imagery (Maxar, via Mapbox) for a visibly sharper look
+    at the same farm, from a separate provider.
+
+    "ndvi" and "true-color" cover the same window as the farm's latest
+    NDVI observation, so they agree with the trend chart on what period
+    they're showing. "mapbox" has no time window, just the current
+    imagery, so it doesn't need an NDVI observation to exist yet, only
+    a mapped boundary.
     """
     farm = db.get(Farm, farm_id)
     if farm is None:
         raise HTTPException(status_code=404, detail="Farm not found")
+
+    if style == "mapbox":
+        if not farm.boundary_mapped or farm.boundary is None:
+            raise HTTPException(status_code=404, detail="Farm has no mapped boundary yet")
+
+        cache_key = (farm_id, "current", style)
+        cached = _IMAGE_CACHE.get(cache_key)
+        if cached and time.monotonic() - cached[0] < _IMAGE_CACHE_TTL_SECONDS:
+            return Response(content=cached[1], media_type="image/png")
+
+        boundary_geojson = json.loads(
+            db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm_id)).scalar_one()
+        )
+        png_bytes = fetch_boundary_satellite_image(boundary_geojson)
+        _IMAGE_CACHE[cache_key] = (time.monotonic(), png_bytes)
+        return Response(content=png_bytes, media_type="image/png")
 
     latest = db.execute(
         select(FarmNdviObservation)
