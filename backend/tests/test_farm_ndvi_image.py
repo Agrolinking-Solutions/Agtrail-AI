@@ -152,6 +152,69 @@ def test_mapbox_style_404_for_farm_with_no_boundary(client, db_session):
     assert response.status_code == 404
 
 
+def test_mapbox_area_style_works_without_an_ndvi_observation(client, db_session, monkeypatch):
+    import app.api.routes.farms as farms_module
+
+    farm = _make_farm_with_boundary(db_session)
+    db_session.commit()
+
+    farms_module._IMAGE_CACHE.clear()
+    calls = []
+    monkeypatch.setattr(
+        farms_module, "fetch_area_view",
+        lambda *a, **k: calls.append(1) or FAKE_PNG,
+    )
+
+    response = client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox-area", headers={"X-API-Key": API_KEY})
+
+    assert response.status_code == 200
+    assert response.content == FAKE_PNG
+    assert len(calls) == 1
+
+
+def test_mapbox_area_style_is_cached_separately_from_mapbox(client, db_session, monkeypatch):
+    import app.api.routes.farms as farms_module
+
+    farm = _make_farm_with_boundary(db_session)
+    db_session.commit()
+
+    farms_module._IMAGE_CACHE.clear()
+    area_calls = []
+    boundary_calls = []
+    monkeypatch.setattr(
+        farms_module, "fetch_area_view",
+        lambda *a, **k: area_calls.append(1) or FAKE_PNG,
+    )
+    monkeypatch.setattr(
+        farms_module, "fetch_boundary_satellite_image",
+        lambda *a, **k: boundary_calls.append(1) or FAKE_PNG,
+    )
+
+    client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox-area", headers={"X-API-Key": API_KEY})
+    client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox-area", headers={"X-API-Key": API_KEY})
+    client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox", headers={"X-API-Key": API_KEY})
+    client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox", headers={"X-API-Key": API_KEY})
+
+    assert len(area_calls) == 1, "second mapbox-area request should be served from cache"
+    assert len(boundary_calls) == 1, "mapbox should render once, not share mapbox-area's cache entry"
+
+
+def test_mapbox_area_style_404_for_farm_with_no_boundary(client, db_session):
+    from app.models.farm import Farm
+    from app.models.farmer import Farmer
+
+    farmer = Farmer(full_name="Test Farmer", phone="080000002", state="Oyo", lga="Ibadan North")
+    db_session.add(farmer)
+    db_session.flush()
+    farm = Farm(farmer_id=farmer.id, name="Unmapped Farm")
+    db_session.add(farm)
+    db_session.commit()
+
+    response = client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox-area", headers={"X-API-Key": API_KEY})
+
+    assert response.status_code == 404
+
+
 def test_ndvi_image_404_for_farm_with_no_observations(client, db_session):
     farm = _make_farm_with_boundary(db_session)
     db_session.commit()
