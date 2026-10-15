@@ -1,10 +1,12 @@
 # AgTrail AI
 
-The AI intelligence layer behind AgTrail: it receives signed webhooks from
-AgTrail (new farms, crop cycles, monitoring photos), classifies each photo's
-farming stage with an image model, and serves the predictions back to
-AgTrail. AgTrail owns the frontend and the farmer/agent data; this repo is
-the backend engine that plugs into it, not a standalone product.
+The AI and satellite intelligence layer behind AgTrail. It receives signed
+webhooks from AgTrail (new farms, crop cycles, monitoring photos),
+classifies each photo's farming stage with an image model, and serves the
+predictions back to AgTrail. It also serves each farm's location,
+vegetation trend, and satellite imagery, for the dashboard's map view.
+AgTrail owns the frontend and the farmer/agent data; this repo is the
+backend engine that plugs into it, not a standalone product.
 
 | Folder | Contents |
 | --- | --- |
@@ -36,7 +38,24 @@ refuses to start unless `SECRET_KEY`, `AGTRAIL_WEBHOOK_SECRET` and
 | `GET /predictions/{farm_id}` | `X-API-Key` |
 | `GET /predictions/{farm_id}/history?limit=&offset=` | `X-API-Key` |
 | `POST /predictions/{prediction_id}/verify` | `X-API-Key`, recorded as `verified_by` |
+| `GET /farms/{farm_id}/location` | `X-API-Key` |
+| `GET /farms/{farm_id}/ndvi?limit=` | `X-API-Key` |
+| `GET /farms/{farm_id}/ndvi-image?style=` | `X-API-Key` |
 | `GET /health`, `GET /health/ready` | none |
+
+The `farms/` endpoints back the dashboard's map and satellite view, not the
+prediction pipeline above. `location` gives a point to fly/pan to and the
+mapped boundary to draw. `ndvi` is the vegetation trend chart, from
+Sentinel-2 via Copernicus Data Space. `ndvi-image` returns a `image/png`
+directly (not JSON) and takes a `style` of `ndvi`, `true-color`, `mapbox`,
+or `mapbox-area`; the first two come from the same Sentinel-2 observation
+as the trend chart, the Mapbox styles are a separate, higher-resolution
+provider with no time window — `mapbox` tightly framed on the farm itself,
+`mapbox-area` a wider fixed-zoom view for surrounding context. Full
+request/response shapes are kept in a shared API reference doc, not here —
+ask in the team channel for the link. `ndvi` and `ndvi-image` need
+`CDSE_CLIENT_ID`/`CDSE_CLIENT_SECRET` set; the Mapbox styles need
+`MAPBOX_ACCESS_TOKEN`.
 
 ## Tests
 
