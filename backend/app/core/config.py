@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Copernicus Data Space (Sentinel-2 NDVI), OAuth client credentials
     CDSE_CLIENT_ID: str = ""
     CDSE_CLIENT_SECRET: str = ""
+
+    # Mapbox, an alternate satellite imagery source alongside Copernicus
+    MAPBOX_ACCESS_TOKEN: str = ""
     WEBHOOK_MAX_BODY_BYTES: int = 256 * 1024
 
     # Image fetching
