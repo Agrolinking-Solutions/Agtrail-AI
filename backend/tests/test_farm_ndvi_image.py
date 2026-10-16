@@ -11,7 +11,7 @@ pytestmark = requires_db
 FAKE_PNG = b"\x89PNG\r\n\x1a\nfake-image-bytes"
 
 
-def _make_farm_with_boundary(db_session):
+def _make_farm_with_boundary(db_session, agtrail_farm_id=None):
     from app.models.farm import Farm
     from app.models.farmer import Farmer
 
@@ -23,6 +23,7 @@ def _make_farm_with_boundary(db_session):
         name="Test Farm",
         boundary_mapped=True,
         boundary=WKTElement("POLYGON((7.9 4.7, 7.99 4.7, 7.99 4.75, 7.9 4.75, 7.9 4.7))", srid=4326),
+        agtrail_farm_id=agtrail_farm_id,
     )
     db_session.add(farm)
     db_session.flush()
@@ -222,6 +223,30 @@ def test_ndvi_image_404_for_farm_with_no_observations(client, db_session):
     response = client.get(f"/farms/{farm.id}/ndvi-image", headers={"X-API-Key": API_KEY})
 
     assert response.status_code == 404
+
+
+def test_mapbox_style_resolves_by_agtrail_farm_id_and_shares_the_cache(client, db_session, monkeypatch):
+    import app.api.routes.farms as farms_module
+
+    farm = _make_farm_with_boundary(db_session, agtrail_farm_id="1fb223df-fe8f-4dfa-83b7-801c3b0f07c5")
+    db_session.commit()
+
+    farms_module._IMAGE_CACHE.clear()
+    calls = []
+    monkeypatch.setattr(
+        farms_module, "fetch_boundary_satellite_image",
+        lambda *a, **k: calls.append(1) or FAKE_PNG,
+    )
+
+    by_our_id = client.get(f"/farms/{farm.id}/ndvi-image?style=mapbox", headers={"X-API-Key": API_KEY})
+    by_agtrail_id = client.get(
+        "/farms/1fb223df-fe8f-4dfa-83b7-801c3b0f07c5/ndvi-image?style=mapbox", headers={"X-API-Key": API_KEY}
+    )
+
+    assert by_our_id.status_code == 200
+    assert by_agtrail_id.status_code == 200
+    assert by_our_id.content == by_agtrail_id.content == FAKE_PNG
+    assert len(calls) == 1, "both ids should resolve to the same farm and share one cache entry"
 
 
 def test_ndvi_image_404_for_unknown_farm(client):

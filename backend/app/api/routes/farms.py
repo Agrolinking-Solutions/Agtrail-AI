@@ -25,9 +25,26 @@ router = APIRouter(
 # render costs processing quota, and the same farm/period/style is
 # rendered on every page view until the underlying imagery changes,
 # which is at most daily. Per-worker only, each uvicorn worker has its
-# own copy, that is fine here.
+# own copy, that is fine here. Always keyed by our own Farm.id, even when
+# the caller looked the farm up by AgTrail's id, so both ids share one
+# cache entry instead of rendering (and paying for) the same image twice.
 _IMAGE_CACHE: dict[tuple[uuid.UUID, str, str], tuple[float, bytes]] = {}
 _IMAGE_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+
+def resolve_farm(db: Session, farm_id: uuid.UUID) -> Farm | None:
+    """
+    AgTrail's frontend only ever has AgTrail's own farm id, not the one we
+    generate when the farm.created webhook creates the row, so {farm_id}
+    has to accept either. Our own id is checked first since it's the
+    primary key lookup; agtrail_farm_id is a plain unique column.
+    """
+    farm = db.get(Farm, farm_id)
+    if farm is not None:
+        return farm
+    return db.execute(
+        select(Farm).where(Farm.agtrail_farm_id == str(farm_id))
+    ).scalar_one_or_none()
 
 
 @router.get("/{farm_id}/location", response_model=FarmLocationOut)
@@ -40,6 +57,10 @@ def get_farm_location(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     above, AgTrail's frontend does the actual map rendering and the
     fly-to animation with it.
     """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
     # coordinates comes from AgTrail's farm.created event, which in
     # practice is rarely populated; the boundary's own centroid is a
     # reliable fallback for any farm that's actually been mapped.
@@ -51,10 +72,8 @@ def get_farm_location(farm_id: uuid.UUID, db: Session = Depends(get_db)):
             func.ST_Y(center),
             func.ST_X(center),
             func.ST_AsGeoJSON(Farm.boundary),
-        ).where(Farm.id == farm_id)
+        ).where(Farm.id == farm.id)
     ).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Farm not found")
 
     farm_id_, boundary_mapped, lat, lng, boundary_geojson = row
     return FarmLocationOut(
@@ -73,12 +92,13 @@ def get_ndvi_trend(
     db: Session = Depends(get_db),
 ):
     """Oldest to newest, so a chart can plot it left to right without resorting."""
-    if db.get(Farm, farm_id) is None:
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
         raise HTTPException(status_code=404, detail="Farm not found")
 
     observations = db.execute(
         select(FarmNdviObservation)
-        .where(FarmNdviObservation.farm_id == farm_id)
+        .where(FarmNdviObservation.farm_id == farm.id)
         .order_by(FarmNdviObservation.period_start.desc())
         .limit(limit)
     ).scalars().all()
@@ -108,7 +128,7 @@ def get_ndvi_image(
     the current imagery, so neither needs an NDVI observation to exist
     yet, only a mapped boundary.
     """
-    farm = db.get(Farm, farm_id)
+    farm = resolve_farm(db, farm_id)
     if farm is None:
         raise HTTPException(status_code=404, detail="Farm not found")
 
@@ -116,21 +136,21 @@ def get_ndvi_image(
         if not farm.boundary_mapped or farm.boundary is None:
             raise HTTPException(status_code=404, detail="Farm has no mapped boundary yet")
 
-        cache_key = (farm_id, "current", style)
+        cache_key = (farm.id, "current", style)
         cached = _IMAGE_CACHE.get(cache_key)
         if cached and time.monotonic() - cached[0] < _IMAGE_CACHE_TTL_SECONDS:
             return Response(content=cached[1], media_type="image/png")
 
         if style == "mapbox":
             boundary_geojson = json.loads(
-                db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm_id)).scalar_one()
+                db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm.id)).scalar_one()
             )
             png_bytes = fetch_boundary_satellite_image(boundary_geojson)
         else:
             centroid = func.ST_Centroid(Farm.boundary)
             lng, lat, boundary_geojson = db.execute(
                 select(func.ST_X(centroid), func.ST_Y(centroid), func.ST_AsGeoJSON(Farm.boundary))
-                .where(Farm.id == farm_id)
+                .where(Farm.id == farm.id)
             ).one()
             png_bytes = fetch_area_view(lng, lat, json.loads(boundary_geojson))
 
@@ -139,20 +159,20 @@ def get_ndvi_image(
 
     latest = db.execute(
         select(FarmNdviObservation)
-        .where(FarmNdviObservation.farm_id == farm_id)
+        .where(FarmNdviObservation.farm_id == farm.id)
         .order_by(FarmNdviObservation.period_start.desc())
         .limit(1)
     ).scalar_one_or_none()
     if latest is None:
         raise HTTPException(status_code=404, detail="No NDVI data for this farm yet")
 
-    cache_key = (farm_id, latest.period_start.isoformat(), style)
+    cache_key = (farm.id, latest.period_start.isoformat(), style)
     cached = _IMAGE_CACHE.get(cache_key)
     if cached and time.monotonic() - cached[0] < _IMAGE_CACHE_TTL_SECONDS:
         return Response(content=cached[1], media_type="image/png")
 
     boundary_geojson = json.loads(
-        db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm_id)).scalar_one()
+        db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm.id)).scalar_one()
     )
     token = get_access_token()
     png_bytes = fetch_farm_image(IMAGE_STYLES[style], boundary_geojson, latest.period_start, latest.period_end, token)

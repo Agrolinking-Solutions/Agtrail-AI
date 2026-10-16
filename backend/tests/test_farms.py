@@ -7,14 +7,14 @@ from tests.conftest import API_KEY, requires_db
 pytestmark = requires_db
 
 
-def _make_farm(db_session):
+def _make_farm(db_session, agtrail_farm_id=None):
     from app.models.farm import Farm
     from app.models.farmer import Farmer
 
     farmer = Farmer(full_name="Test Farmer", phone="080000000", state="Oyo", lga="Ibadan North")
     db_session.add(farmer)
     db_session.flush()
-    farm = Farm(farmer_id=farmer.id, name="Test Farm")
+    farm = Farm(farmer_id=farmer.id, name="Test Farm", agtrail_farm_id=agtrail_farm_id)
     db_session.add(farm)
     db_session.flush()
     return farm
@@ -56,6 +56,19 @@ def test_ndvi_trend_respects_limit(client, db_session):
 
     assert response.status_code == 200
     assert len(response.json()) == 2
+
+
+def test_ndvi_trend_resolves_by_agtrail_farm_id(client, db_session):
+    farm = _make_farm(db_session, agtrail_farm_id="1fb223df-fe8f-4dfa-83b7-801c3b0f07c5")
+    _add_observation(db_session, farm, date(2026, 8, 14), date(2026, 8, 24), 0.4)
+    db_session.commit()
+
+    response = client.get(
+        "/farms/1fb223df-fe8f-4dfa-83b7-801c3b0f07c5/ndvi", headers={"X-API-Key": API_KEY}
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
 
 
 def test_ndvi_trend_404_for_unknown_farm(client):
