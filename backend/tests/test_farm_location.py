@@ -87,6 +87,25 @@ def test_location_has_no_point_when_neither_coordinates_nor_boundary_exist(clien
     assert body["boundary"] is None
 
 
+def test_location_resolves_by_agtrail_farm_id(client, db_session):
+    farm = _make_farm(
+        db_session,
+        agtrail_farm_id="1fb223df-fe8f-4dfa-83b7-801c3b0f07c5",
+        coordinates=WKTElement("POINT(7.95 4.72)", srid=4326),
+        boundary_mapped=True,
+        boundary=WKTElement("POLYGON((7.9 4.7, 7.99 4.7, 7.99 4.75, 7.9 4.75, 7.9 4.7))", srid=4326),
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/farms/1fb223df-fe8f-4dfa-83b7-801c3b0f07c5/location", headers={"X-API-Key": API_KEY}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["farm_id"] == str(farm.id)
+
+
 def test_location_404_for_unknown_farm(client):
     import uuid
 
