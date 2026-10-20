@@ -41,6 +41,8 @@ refuses to start unless `SECRET_KEY`, `AGTRAIL_WEBHOOK_SECRET` and
 | `GET /farms/{farm_id}/location` | `X-API-Key` |
 | `GET /farms/{farm_id}/ndvi?limit=` | `X-API-Key` |
 | `GET /farms/{farm_id}/ndvi-image?style=` | `X-API-Key` |
+| `POST /check` | `X-API-Key` |
+| `POST /check/image?style=` | `X-API-Key` |
 | `GET /health`, `GET /health/ready` | none |
 
 The `farms/` endpoints back the dashboard's map and satellite view, not the
@@ -56,6 +58,21 @@ request/response shapes are kept in a shared API reference doc, not here —
 ask in the team channel for the link. `ndvi` and `ndvi-image` need
 `CDSE_CLIENT_ID`/`CDSE_CLIENT_SECRET` set; the Mapbox styles need
 `MAPBOX_ACCESS_TOKEN`.
+
+`{farm_id}` on any of the above accepts either our own `id` or AgTrail's
+own farm id (`agtrail_farm_id`) — a caller only holding AgTrail's id
+doesn't need a separate lookup to resolve it to ours first.
+
+`check` and `check/image` are the same engine with no AgTrail farm
+behind it: the caller supplies a GeoJSON boundary directly in the
+request body (`{"boundary": {...}}`) instead of a `farm_id`, for a plot
+that's never been registered with AgTrail at all. This is what the
+AgLens monetization product (a separate paid API/frontend, billed and
+orchestrated entirely outside this repo) calls. The boundary is
+validated (a real, sane-sized polygon) via PostGIS before any
+Copernicus or Mapbox call runs against it; neither endpoint is cached,
+since each call is a billable action against a caller-supplied
+geometry rather than a repeat view of a farm already on file.
 
 ## Tests
 
