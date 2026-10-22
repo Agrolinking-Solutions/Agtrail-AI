@@ -39,6 +39,8 @@ class FarmImage(Base):
         Enum(ImageStatus), default=ImageStatus.pending, nullable=False, index=True
     )
     source_payload_raw: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    archived_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     visit: Mapped["FarmVisit"] = relationship("FarmVisit", back_populates="images")
     predictions: Mapped[list["Prediction"]] = relationship(

@@ -22,6 +22,7 @@ from app.models.job import Job, JobStatus
 logger = logging.getLogger(__name__)
 
 JOB_RUN_INFERENCE = "run_inference"
+JOB_ARCHIVE_IMAGE = "archive_image"
 
 DEFAULT_BACKOFF_SECONDS = 30
 MAX_BACKOFF_SECONDS = 3600
