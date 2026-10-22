@@ -34,5 +34,8 @@ reprocess:
 sync-boundaries:
 	cd backend && .venv/bin/python -m app.jobs.sync_boundaries
 
+backfill-operations:
+	cd backend && .venv/bin/python -m app.jobs.backfill_operations
+
 up:
 	docker compose -f infra/docker/docker-compose.yml up --build

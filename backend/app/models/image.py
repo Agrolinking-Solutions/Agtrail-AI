@@ -41,8 +41,13 @@ class FarmImage(Base):
     source_payload_raw: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     archived_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # The logged operation this photo belongs to, when AgTrail told us one.
+    farm_operation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("farm_operations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     visit: Mapped["FarmVisit"] = relationship("FarmVisit", back_populates="images")
+    operation: Mapped["FarmOperation | None"] = relationship("FarmOperation", back_populates="images")
     predictions: Mapped[list["Prediction"]] = relationship(
         "Prediction", back_populates="image"
     )
