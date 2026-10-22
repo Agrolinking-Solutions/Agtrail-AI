@@ -22,6 +22,7 @@ from app.schemas.agtrail_webhook import (
 )
 from app.services.agtrail_webhook_security import verify_webhook_signature
 from app.services.agtrail_webhook_idempotency import event_already_received, record_event_received
+from app.services.farm_records import record_operation, upsert_crop_cycle
 from app.services.job_queue import JOB_ARCHIVE_IMAGE, JOB_RUN_INFERENCE, enqueue
 
 logger = logging.getLogger(__name__)
@@ -122,14 +123,17 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
 
     if isinstance(payload, CropCycleCreatedPayload):
         farmer = _get_or_create_farmer(db, payload.farm, payload.farmer)
-        # Crop cycle details (variety, planted_date, status) are logged in
-        # the raw payload. Mapping these into a dedicated table is part of
-        # the future schema mapper work, not handled yet.
-        return _get_or_create_farm(db, payload.farm, farmer, commodity=payload.crop_cycle.crop), None
+        farm = _get_or_create_farm(db, payload.farm, farmer, commodity=payload.crop_cycle.crop)
+        upsert_crop_cycle(db, farm, payload.crop_cycle)
+        return farm, None
 
     if isinstance(payload, MonitoringImageCreatedPayload):
         farmer = _get_or_create_farmer(db, payload.farm, payload.farmer)
         farm = _get_or_create_farm(db, payload.farm, farmer, commodity=payload.crop_cycle.crop)
+        cycle, _ = upsert_crop_cycle(db, farm, payload.crop_cycle)
+        operation, _ = record_operation(
+            db, farm, cycle, payload.operation_context, payload.image.captured_at
+        )
 
         visit = FarmVisit(
             farm_id=farm.id,
@@ -150,6 +154,7 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
             source=ImageSource.agtrail_webhook,
             status=ImageStatus.pending,
             source_payload_raw=redacted_payload(payload),
+            farm_operation_id=operation.id if operation else None,
         )
         db.add(image)
         db.flush()

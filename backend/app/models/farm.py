@@ -38,6 +38,12 @@ class Farm(Base):
         Enum(FarmStatus), default=FarmStatus.active, nullable=False
     )
     agtrail_farm_id: Mapped[str | None] = mapped_column(String(200), nullable=True, unique=True)
+    # Where the farm came from: "agtrail" today, later "aglens" or "api_client".
+    source: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="agtrail", server_default="agtrail"
+    )
+    # Which paying API client owns the farm. NULL for AgTrail's own farms.
+    owner_client_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -47,6 +53,7 @@ class Farm(Base):
     monitoring_cycles: Mapped[list["MonitoringCycle"]] = relationship(
         "MonitoringCycle", back_populates="farm"
     )
+    crop_cycles: Mapped[list["CropCycle"]] = relationship("CropCycle", back_populates="farm")
     predictions: Mapped[list["Prediction"]] = relationship(
         "Prediction", back_populates="farm"
     )
