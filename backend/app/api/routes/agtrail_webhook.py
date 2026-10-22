@@ -22,7 +22,7 @@ from app.schemas.agtrail_webhook import (
 )
 from app.services.agtrail_webhook_security import verify_webhook_signature
 from app.services.agtrail_webhook_idempotency import event_already_received, record_event_received
-from app.services.job_queue import JOB_RUN_INFERENCE, enqueue
+from app.services.job_queue import JOB_ARCHIVE_IMAGE, JOB_RUN_INFERENCE, enqueue
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +160,10 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
         # (app/worker.py) picks it up, instead of the image being silently
         # stuck pending forever.
         enqueue(db, JOB_RUN_INFERENCE, {"image_id": str(image.id)})
+        # Only when a bucket is configured, otherwise every image would
+        # queue a job that can only fail and retry.
+        if settings.GCP_BUCKET_NAME:
+            enqueue(db, JOB_ARCHIVE_IMAGE, {"image_id": str(image.id)})
 
         return farm, image
 

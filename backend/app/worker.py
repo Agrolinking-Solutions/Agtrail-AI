@@ -24,8 +24,10 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.models.job import Job
+from app.services.image_archive import archive_image_for_id
 from app.services.inference import run_inference_for_image
 from app.services.job_queue import (
+    JOB_ARCHIVE_IMAGE,
     JOB_RUN_INFERENCE,
     claim_next,
     mark_failed,
@@ -46,8 +48,14 @@ def _handle_run_inference(payload: dict) -> None:
     run_inference_for_image(image_id)
 
 
+def _handle_archive_image(payload: dict) -> None:
+    image_id = uuid.UUID(payload["image_id"])
+    archive_image_for_id(image_id)
+
+
 HANDLERS = {
     JOB_RUN_INFERENCE: _handle_run_inference,
+    JOB_ARCHIVE_IMAGE: _handle_archive_image,
 }
 
 

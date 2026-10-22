@@ -47,6 +47,8 @@ def test_monitoring_image_queues_inference(client, db_session):
     assert response.status_code == 200, response.text
     image = db_session.execute(select(FarmImage)).scalar_one()
     assert queued_image_ids(db_session) == [str(image.id)]
+    # No bucket configured in tests, so archiving is off.
+    assert queued_image_ids(db_session, job_type="archive_image") == []
     assert "phone" not in image.source_payload_raw["farmer"]
     # No mapped boundary yet, so the visit can't be GPS verified.
     assert db_session.execute(select(FarmVisit)).scalar_one().gps_verified is False
@@ -172,3 +174,18 @@ def test_verify_keeps_original_prediction(client, db_session):
 
 def test_readiness_checks_database(client):
     assert client.get("/health/ready").json() == {"status": "ok"}
+
+
+def test_monitoring_image_queues_archive_when_bucket_configured(client, db_session, monkeypatch):
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.models.image import FarmImage
+
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "test-bucket")
+
+    response = post_event(client, load_payload("test_payload.json"))
+
+    assert response.status_code == 200, response.text
+    image = db_session.execute(select(FarmImage)).scalar_one()
+    assert queued_image_ids(db_session, job_type="archive_image") == [str(image.id)]

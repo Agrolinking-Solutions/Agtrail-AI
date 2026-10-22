@@ -56,11 +56,12 @@ def validate_public_url(url: str) -> None:
             raise UnsafeURLError(f"host resolves to non-public address {address}")
 
 
-def fetch_image(url: str, timeout: float = 10.0) -> Image.Image:
+def fetch_bytes(url: str, timeout: float = 10.0) -> tuple[bytes, str | None]:
     """
-    Downloads url and returns it as an RGB PIL image. Redirects are
-    followed by hand so every hop is re-validated, and the body is read
-    in chunks so a download stops as soon as it passes IMAGE_MAX_BYTES.
+    Downloads url and returns its raw bytes exactly as served, plus its
+    declared content type. Redirects are followed by hand so every hop
+    is re-validated, and the body is read in chunks so a download stops
+    as soon as it passes IMAGE_MAX_BYTES.
 
     Note: the host is resolved once for validation and again by httpx to
     connect, so a DNS server under an attacker's control could still
@@ -89,19 +90,27 @@ def fetch_image(url: str, timeout: float = 10.0) -> Image.Image:
                 if declared and declared.isdigit() and int(declared) > max_bytes:
                     raise ImageTooLargeError(f"image is {declared} bytes, limit is {max_bytes}")
 
+                content_type = response.headers.get("content-type")
                 buffer = io.BytesIO()
                 for chunk in response.iter_bytes():
                     buffer.write(chunk)
                     if buffer.tell() > max_bytes:
                         raise ImageTooLargeError(f"image exceeds {max_bytes} bytes")
 
-            # Image.open only reads the header, so the pixel count can be
-            # checked before the full image is decoded into memory.
-            image = Image.open(buffer)
-            width, height = image.size
-            if width * height > settings.IMAGE_MAX_PIXELS:
-                raise ImageTooLargeError(f"image is {width}x{height} pixels")
-            image.load()
-            return image.convert("RGB")
+            return buffer.getvalue(), content_type
 
     raise httpx.HTTPError(f"more than {MAX_REDIRECTS} redirects")
+
+
+def fetch_image(url: str, timeout: float = 10.0) -> Image.Image:
+    """Downloads url and returns it as an RGB PIL image."""
+    data, _ = fetch_bytes(url, timeout=timeout)
+
+    # Image.open only reads the header, so the pixel count can be
+    # checked before the full image is decoded into memory.
+    image = Image.open(io.BytesIO(data))
+    width, height = image.size
+    if width * height > settings.IMAGE_MAX_PIXELS:
+        raise ImageTooLargeError(f"image is {width}x{height} pixels")
+    image.load()
+    return image.convert("RGB")
