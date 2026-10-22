@@ -27,5 +27,5 @@ python-dotenv==1.2.3
 # CPU-only index first, see the Dockerfile.
 torch==2.14.0
 torchvision==0.29.0
-pillow==12.3.0
+pillow==13.0.0
 numpy==2.5.3
