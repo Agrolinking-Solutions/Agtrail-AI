@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 # Length limits match the database columns, so an over-long value is a
 # 422 here rather than a database error (and endless retries) later.
@@ -37,6 +37,25 @@ class WebhookCropCycle(BaseModel):
 class WebhookOperationContext(BaseModel):
     agtrail_operation_id: str | None = Field(default=None, max_length=200)
     logged_operation_type: str | None = Field(default=None, max_length=100)
+    # The date the agent says the operation happened. Optional, because older
+    # AgTrail versions do not send it, and forgiving on purpose: an unreadable
+    # value becomes None (we then use the photo's date) instead of rejecting
+    # the whole event, which AgTrail would retry forever.
+    operation_date: date | None = None
+
+    @field_validator("operation_date", mode="before")
+    @classmethod
+    def _read_operation_date(cls, value):
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value.strip()[:10])
+            except ValueError:
+                return None
+        return None
 
 
 class WebhookImage(BaseModel):

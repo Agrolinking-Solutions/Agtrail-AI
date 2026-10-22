@@ -23,7 +23,8 @@ names typed into the crop box (`Tomato Farm`, `Yam Nusery`,
 
 | # | Question | Owner | Why it matters |
 | --- | --- | --- | --- |
-| 1 | Does AgTrail log a real operation date? The webhook has none, so `farm_operations.operation_date` is the date of the earliest photo in Nigerian time (UTC+1, no daylight saving). | AgTrail team | Signals are dated by it. UNVERIFIED. |
+| 1 | AgTrail does log a real operation date (`operationDate`, required when an operation is created), but its webhook does not send it. `captured_at` is the time the record was saved, so an operation logged late is dated wrongly. The hub now accepts an optional `operation_date` in `operation_context` and uses it when present, otherwise the photo's date in Nigerian time (UTC+1, no daylight saving). Next: AgTrail's `webhookService.ts` must add `operation_date: op.operationDate`. | AgTrail backend (Victor) | Signals are dated by it. Until the backend change is deployed, dates are the photo's date. |
+| 1b | AgTrail sends `general` when an operation has neither a category nor a type. So `general` means "unknown type", not a real operation. It is mapped to `other` for now. | AgTrail team | Decide whether such operations should appear on the map at all. |
 | 2 | Approve the operation name mapping in `operation_type_aliases` (all UNVERIFIED). In particular: `fertilizer` becomes `fertilizer_application`; `irrigation`, `pruning` and `general` become `other`. | Agronomist | Decides which signal category each logged operation gets. |
 | 3 | Soybean is the second most common crop (about 47 farms across 10 spellings) but has no Knowledge Base file. Same for potato, plantain, sugarcane and finger millet. | Agronomist, Knowledge Base team | Without a crop file there are no rules, no due dates and no yield range for these farms. PIS does have a soybean price series. |
 | 4 | `white beans` is mapped to no Knowledge Base crop. Is it cowpea? | Agronomist | The Knowledge Base has cowpea only. |

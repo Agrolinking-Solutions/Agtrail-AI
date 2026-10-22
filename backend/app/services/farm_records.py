@@ -91,16 +91,21 @@ def record_operation(
         return None, False
 
     raw_type = context.logged_operation_type
-    operation_date = captured_at.astimezone(LOCAL_TIMEZONE).date()
+    # The date the agent logged, when AgTrail sends it. Otherwise the photo's
+    # date in Nigerian time, which is only a stand-in: an operation logged
+    # late would be dated when it was saved, not when it happened.
+    reported_date = context.operation_date
+    operation_date = reported_date or captured_at.astimezone(LOCAL_TIMEZONE).date()
 
     if context.agtrail_operation_id:
         operation = db.execute(
             select(FarmOperation).where(FarmOperation.agtrail_operation_id == context.agtrail_operation_id)
         ).scalar_one_or_none()
         if operation is not None:
-            # Another photo for the same operation. The operation's date is
-            # its earliest photo.
-            if operation_date < operation.operation_date:
+            # Another event for the same operation. A date the agent logged
+            # is authoritative. Without one, the operation is dated by its
+            # earliest photo.
+            if reported_date is not None or operation_date < operation.operation_date:
                 operation.operation_date = operation_date
             operation.logged_type_raw = raw_type
             operation.signal_category = resolve_signal_category(db, raw_type)

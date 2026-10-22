@@ -32,7 +32,7 @@ OPERATION_ALIASES = [
     ("harvesting", "harvesting", None),
     ("irrigation", "other", "No irrigation category in the shared list."),
     ("pruning", "other", "No pruning category in the shared list."),
-    ("general", "other", "A general note, not a specific operation."),
+    ("general", "other", "AgTrail sends 'general' when an operation has no category or type."),
 ]
 
 # Crop text typed by users, seen in production on 22 Oct 2026. A NULL

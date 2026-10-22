@@ -19,6 +19,7 @@ def _image_payload(
     *,
     op_type="planting",
     op_id=None,
+    op_date=None,
     captured_at="2026-08-08T11:55:00Z",
     cycle_id="CYC-TEST-001",
     crop="Rice",
@@ -34,6 +35,8 @@ def _image_payload(
         context = {"logged_operation_type": op_type}
         if op_id:
             context["agtrail_operation_id"] = op_id
+        if op_date is not None:
+            context["operation_date"] = op_date
         payload["operation_context"] = context
     return payload
 
@@ -210,3 +213,58 @@ def test_migration_can_be_undone_and_redone(migrated_db):
     with migrated_db.connect() as conn:
         assert conn.scalar(text("SELECT count(*) FROM operation_type_aliases")) > 0
         assert conn.scalar(text("SELECT count(*) FROM crop_aliases")) > 0
+
+
+def test_the_date_agtrail_logged_beats_the_photo_date(client, db_session):
+    from app.models import FarmOperation
+
+    # Logged late: the photo was taken on 8 Aug, the work happened on 1 Aug.
+    response = post_event(client, _image_payload("evt_late_log", op_date="2026-08-01"))
+
+    assert response.status_code == 200, response.text
+    assert db_session.execute(select(FarmOperation)).scalar_one().operation_date == date(2026, 8, 1)
+
+
+def test_operation_date_may_be_a_full_timestamp(client, db_session):
+    from app.models import FarmOperation
+
+    response = post_event(client, _image_payload("evt_stamp", op_date="2026-08-01T09:30:00.000Z"))
+
+    assert response.status_code == 200, response.text
+    assert db_session.execute(select(FarmOperation)).scalar_one().operation_date == date(2026, 8, 1)
+
+
+def test_an_unreadable_operation_date_never_rejects_the_event(client, db_session):
+    from app.models import FarmOperation
+
+    for index, bad in enumerate(["not a date", "", 12345, {"a": 1}]):
+        response = post_event(client, _image_payload(f"evt_bad_{index}", op_date=bad))
+        assert response.status_code == 200, (bad, response.text)
+
+    dates = {op.operation_date for op in db_session.execute(select(FarmOperation)).scalars()}
+    assert dates == {date(2026, 8, 8)}  # fell back to the photo's date
+
+
+def test_a_later_event_with_the_real_date_corrects_the_operation(client, db_session):
+    from app.models import FarmOperation
+
+    post_event(client, _image_payload("evt_first", op_id="OP-9", captured_at="2026-08-08T11:55:00Z"))
+    post_event(client, _image_payload("evt_second", op_id="OP-9", op_date="2026-08-03", captured_at="2026-08-08T12:10:00Z"))
+
+    operation = db_session.execute(select(FarmOperation)).scalar_one()
+    assert operation.operation_date == date(2026, 8, 3)
+
+
+def test_backfill_keeps_the_logged_date_from_the_stored_payload(client, db_session):
+    from app.jobs.backfill_operations import backfill_operations
+    from app.models import FarmOperation
+
+    post_event(client, _image_payload("evt_keep", op_id="OP-5", op_date="2026-08-02"))
+    db_session.execute(text("DELETE FROM farm_operations"))
+    db_session.execute(text("DELETE FROM crop_cycles"))
+    db_session.commit()
+
+    backfill_operations()
+
+    db_session.expire_all()
+    assert db_session.execute(select(FarmOperation)).scalar_one().operation_date == date(2026, 8, 2)

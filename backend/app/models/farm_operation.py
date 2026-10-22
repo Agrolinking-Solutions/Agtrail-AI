@@ -31,9 +31,8 @@ class FarmOperation(Base):
     # The crop-specific Knowledge Base operation (for example weeding_1).
     # Filled in later, once the Knowledge Base mapping exists.
     kb_operation_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # The webhook has no operation date, so this is the date of the earliest
-    # photo for the operation, in Nigerian time. UNVERIFIED until AgTrail
-    # confirms there is a better field.
+    # The date the agent logged, when AgTrail's webhook sends operation_date.
+    # Until it does, this is the date of the earliest photo, in Nigerian time.
     operation_date: Mapped[date] = mapped_column(Date, nullable=False)
     source: Mapped[str] = mapped_column(
         String(30), nullable=False, default="agtrail", server_default="agtrail"
