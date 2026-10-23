@@ -1,6 +1,7 @@
 import json
 import time
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
@@ -9,9 +10,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_api_key
 from app.models.farm import Farm
-from app.models.ndvi import FarmNdviObservation
+from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.schemas.location import FarmLocationOut
-from app.schemas.ndvi import NdviObservationOut
+from app.schemas.ndvi import CropHealthOut, NdviObservationOut
+from app.services import crop_health
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
 
@@ -104,6 +106,34 @@ def get_ndvi_trend(
     ).scalars().all()
 
     return list(reversed(observations))
+
+
+@router.get("/{farm_id}/crop-health", response_model=CropHealthOut)
+def get_crop_health(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    The latest usable satellite reading for the farm and how many days old it
+    is, with the one before it and how many recent passes were hidden by cloud.
+    Facts only: status is "fresh", "stale" (reading older than two weeks),
+    "no_clear_reading" (the farm was seen but always under cloud) or "no_data"
+    (no pass stored). A reading is never invented or carried forward.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    scenes = db.execute(select(FarmNdviScene).where(FarmNdviScene.farm_id == farm.id)).scalars().all()
+    summary = crop_health.summarize(scenes, datetime.now(timezone.utc).date())
+    return CropHealthOut(
+        farm_id=farm.id,
+        status=summary.status,
+        as_of=summary.as_of,
+        latest_clear=summary.latest_clear,
+        previous_clear=summary.previous_clear,
+        passes_last_30_days=summary.passes_last_30_days,
+        unusable_passes_last_30_days=summary.unusable_passes_last_30_days,
+        min_clear_fraction=crop_health.MIN_CLEAR_FRACTION,
+        fresh_within_days=crop_health.FRESH_WITHIN_DAYS,
+    )
 
 
 @router.get("/{farm_id}/ndvi-image")
