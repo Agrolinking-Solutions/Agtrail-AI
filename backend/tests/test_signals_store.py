@@ -147,6 +147,8 @@ def test_the_endpoint_lists_signals_newest_first_and_calls_a_block_flagged(clien
     assert response.status_code == 200
     body = response.json()
     assert body["provenance"] == "inferred" and body["kb_version"] == "0.1.0+abc"
+    assert {(x["crop_id"], x["crop"]) for x in body["signals"]} == {("sorghum", "Sorghum")}
+    assert {x["crop_cycle_id"] for x in body["signals"]} == {str(cycle.id)}
     assert [s["logged_type"] for s in body["signals"]] == ["general", "harvest", "planting"]
     assert [s["status"] for s in body["signals"]] == ["unknown", "flagged", "ok"]
     assert body["counts"] == {"unknown": 1, "flagged": 1, "ok": 1}
