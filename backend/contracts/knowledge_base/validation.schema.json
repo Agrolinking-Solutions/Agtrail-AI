@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "RuleIssue": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "severity",
+        "message"
+      ],
+      "title": "RuleIssue",
+      "type": "object"
+    }
+  },
+  "description": "The Knowledge Base's verdict on one operation, given the history before it.",
+  "properties": {
+    "blocked": {
+      "title": "Blocked",
+      "type": "boolean"
+    },
+    "blocking_issues": {
+      "items": {
+        "$ref": "#/$defs/RuleIssue"
+      },
+      "title": "Blocking Issues",
+      "type": "array"
+    },
+    "crop_id": {
+      "title": "Crop Id",
+      "type": "string"
+    },
+    "date": {
+      "title": "Date",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/RuleIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "operation_id": {
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "$ref": "#/$defs/RuleIssue"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "crop_id",
+    "operation_id",
+    "date",
+    "blocked"
+  ],
+  "title": "ValidationReport",
+  "type": "object"
+}

@@ -1,9 +1,9 @@
 """
 The hub's client for the Knowledge Base (validation.agrolinking.com).
 
-Today it reads the shared reference data: the operation taxonomy, the
-crop-to-commodity map, the state-to-zone map and the data version. Calls that
-validate an operation arrive with the signal engine.
+It reads the shared reference data (the operation taxonomy, each crop's steps,
+the crop-to-commodity map, the state-to-zone map and the data version) and asks
+the Knowledge Base to judge an operation or say what comes next.
 
 Every method returns a ClientResult, so a Knowledge Base outage shows up as an
 "unavailable" section, never as an error page. A stale copy is served when the
@@ -19,9 +19,12 @@ from app.clients.base import ClientResult, ServiceClient
 from app.clients.resilience import CircuitBreaker
 from app.contracts.knowledge_base import (
     CommodityMapping,
+    CropSteps,
     KnowledgeBaseVersion,
     RegionMapping,
+    Suggestions,
     Taxonomy,
+    ValidationReport,
 )
 from app.core.config import settings
 
@@ -53,6 +56,36 @@ class KnowledgeBaseClient:
 
     def regions(self) -> ClientResult[RegionMapping]:
         return self._service.fetch("/v1/mappings/regions", RegionMapping, REFERENCE_TTL_SECONDS)
+
+    def crop_steps(self, crop_id: str) -> ClientResult[CropSteps]:
+        return self._service.fetch(f"/v1/crops/{crop_id}/steps", CropSteps, REFERENCE_TTL_SECONDS)
+
+    def validate(
+        self,
+        crop_id: str,
+        history: list[dict],
+        new_operation: dict,
+        region: Optional[str] = None,
+    ) -> ClientResult[ValidationReport]:
+        """history and new_operation are {"operation_id": ..., "date": "YYYY-MM-DD"}."""
+        body = {"crop_id": crop_id, "history": history, "new_operation": new_operation}
+        if region:
+            body["region"] = region
+        return self._service.post("/v1/validate", body, ValidationReport)
+
+    def suggestions(
+        self,
+        crop_id: str,
+        history: list[dict],
+        as_of: Optional[str] = None,
+        region: Optional[str] = None,
+    ) -> ClientResult[Suggestions]:
+        body: dict = {"crop_id": crop_id, "history": history}
+        if as_of:
+            body["as_of"] = as_of
+        if region:
+            body["region"] = region
+        return self._service.post("/v1/suggestions", body, Suggestions)
 
     def version(self) -> ClientResult[KnowledgeBaseVersion]:
         return self._service.fetch("/v1/version", KnowledgeBaseVersion, VERSION_TTL_SECONDS)

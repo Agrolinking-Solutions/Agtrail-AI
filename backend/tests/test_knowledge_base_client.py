@@ -304,6 +304,85 @@ def test_only_one_trial_call_is_let_through_while_half_open():
     assert breaker.allow() is False
 
 
+# ---------------- crop steps, validation and suggestions ----------------
+
+HISTORY = [{"operation_id": "planting", "date": "2026-06-15"}]
+HARVEST = {"operation_id": "harvest", "date": "2026-08-20"}
+
+
+def test_a_crops_steps_are_read_and_cached_like_the_other_reference_data():
+    server = Server(ok("crop_steps_sorghum"))
+    client, _ = make(server)
+
+    first = client.crop_steps("sorghum")
+    client.crop_steps("sorghum")
+
+    assert first.ok and first.value.steps[0].operation_id == "land_clearing"
+    assert [s.operation_id for s in first.value.steps_in_category("weeding")] == ["weeding_1", "weeding_2"]
+    assert len(server.requests) == 1 and server.requests[0].url.path == "/v1/crops/sorghum/steps"
+
+
+def test_validate_sends_the_history_and_operation_and_parses_the_verdict():
+    server = Server(ok("validate_blocked"))
+    client, _ = make(server)
+
+    result = client.validate("sorghum", HISTORY, HARVEST, region="Kaduna")
+
+    request = server.requests[0]
+    assert request.method == "POST" and request.url.path == "/v1/validate"
+    assert json.loads(request.content) == {"crop_id": "sorghum", "history": HISTORY, "new_operation": HARVEST, "region": "Kaduna"}
+    assert result.value.blocked and result.value.blocking_issues[0].rule_id == "sorghum_r8"
+
+
+def test_validate_answers_are_never_cached_because_they_depend_on_the_history():
+    server = Server(ok("validate_clean"))
+    client, _ = make(server)
+
+    client.validate("sorghum", HISTORY, HARVEST)
+    client.validate("sorghum", HISTORY, HARVEST)
+
+    assert len(server.requests) == 2
+
+
+def test_validate_never_serves_an_old_answer_when_the_service_is_down():
+    server = Server(ok("validate_clean"), httpx.ConnectError("down"))
+    client, _ = make(server)
+    client.validate("sorghum", HISTORY, HARVEST)
+
+    result = client.validate("sorghum", HISTORY, HARVEST)
+
+    assert not result.ok and not result.stale and "could not be reached" in result.unavailable_reason
+
+
+def test_validate_retries_a_server_error_but_not_a_rejection():
+    server = Server(httpx.Response(503), ok("validate_clean"))
+    client, _ = make(server)
+    assert client.validate("sorghum", HISTORY, HARVEST).ok and len(server.requests) == 2
+
+    rejected = Server(httpx.Response(404, json={"detail": "No crop file"}))
+    client, _ = make(rejected)
+    result = client.validate("nope", HISTORY, HARVEST)
+    assert not result.ok and "404" in result.unavailable_reason and len(rejected.requests) == 1
+
+
+def test_a_validate_answer_that_breaks_the_contract_is_not_used():
+    broken = fixture("validate_clean")
+    del broken["blocked"]
+    client, _ = make(Server(httpx.Response(200, json=broken)))
+
+    assert "contract" in client.validate("sorghum", HISTORY, HARVEST).unavailable_reason
+
+
+def test_suggestions_are_parsed_and_the_optional_fields_are_only_sent_when_given():
+    server = Server(ok("suggestions"))
+    client, _ = make(server)
+
+    result = client.suggestions("sorghum", HISTORY, as_of="2026-06-20")
+
+    assert json.loads(server.requests[0].content) == {"crop_id": "sorghum", "history": HISTORY, "as_of": "2026-06-20"}
+    assert result.value.suggestion.operation_id == "weeding_1" and result.value.suggestion.days_until_due == 9
+
+
 def test_the_default_client_reads_its_address_from_settings(monkeypatch):
     from app.core.config import settings
 

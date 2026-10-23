@@ -129,13 +129,47 @@ class ServiceClient:
             self._cache[key] = _CacheEntry(value=value, etag=response.headers.get("etag"), fetched_at=self._clock())
         return ClientResult(value=value)
 
+    def post(self, path: str, body: dict, model: type[T]) -> ClientResult[T]:
+        """For questions the other service answers by computing (is this operation
+        allowed?). The answer depends on the body, so nothing is cached, and an old
+        answer is never served in place of a missing one: that would be a verdict
+        about different facts."""
+        if not self.breaker.allow():
+            return ClientResult(unavailable_reason=f"{self.name} is not responding (circuit open)")
+
+        headers = {}
+        rid = request_id.get()
+        if rid:
+            headers["X-Request-ID"] = rid
+
+        response, problem = self._get_with_retries(path, headers, json_body=body)
+        if response is None:
+            self.breaker.record_failure()
+            return ClientResult(unavailable_reason=problem or f"{self.name} did not respond")
+        self.breaker.record_success()
+
+        if response.status_code != 200:
+            logger.warning("%s %s answered %s", self.name, path, response.status_code)
+            return ClientResult(unavailable_reason=f"{self.name} answered {response.status_code} for {path}")
+
+        try:
+            return ClientResult(value=model.model_validate(response.json()))
+        except (ValueError, ValidationError) as exc:
+            logger.error("Contract error: %s %s no longer matches %s: %s", self.name, path, model.__name__, exc)
+            return ClientResult(unavailable_reason=f"{self.name} {path} did not match the agreed contract")
+
     # -- internals --
 
-    def _get_with_retries(self, path: str, headers: dict[str, str]) -> tuple[Optional[httpx.Response], Optional[str]]:
+    def _get_with_retries(
+        self, path: str, headers: dict[str, str], json_body: Optional[dict] = None
+    ) -> tuple[Optional[httpx.Response], Optional[str]]:
         problem = None
         for attempt in range(self.retries + 1):
             try:
-                response = self._http.get(path, headers=headers)
+                if json_body is None:
+                    response = self._http.get(path, headers=headers)
+                else:
+                    response = self._http.post(path, json=json_body, headers=headers)
             except httpx.TimeoutException:
                 problem = f"{self.name} timed out"
             except httpx.TransportError as exc:
