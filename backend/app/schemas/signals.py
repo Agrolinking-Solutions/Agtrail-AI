@@ -7,7 +7,13 @@ from pydantic import BaseModel
 class RuleIssueOut(BaseModel):
     rule_id: str
     severity: str
+    # The Knowledge Base's own wording, unchanged.
     message: str
+    # missing_step | timing | order | repeat | other. A missing_step is a gap in the
+    # records; the others are about what was done.
+    kind: str
+    # A short plain-language line, when the message follows a known pattern.
+    summary: str | None = None
 
 
 class OperationSignalOut(BaseModel):
@@ -29,4 +35,6 @@ class FarmSignalsOut(BaseModel):
     provenance: str = "inferred"
     kb_version: str | None
     counts: dict[str, int]
+    # How many issues of each kind, across all signals.
+    issue_kinds: dict[str, int]
     signals: list[OperationSignalOut]

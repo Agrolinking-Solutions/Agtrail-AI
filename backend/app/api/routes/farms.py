@@ -16,7 +16,9 @@ from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
 from app.schemas.ndvi import CropHealthOut, NdviObservationOut
 from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
+from app.contracts.knowledge_base import RuleIssue
 from app.services import crop_health
+from app.services.signal_engine import classify_issue
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
 
@@ -147,7 +149,9 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     crop has no such step) or "unknown" (not judged, and reason says why). An
     operation is only judged when it can be identified for certain. These are
     inferred from the logged data, not seen on the farm, and are rebuilt every time
-    the judging job runs.
+    the judging job runs. Each issue has a kind: "missing_step" means an earlier job
+    was never logged (a gap in the records), "timing", "order" and "repeat" are about
+    what was done, and the Knowledge Base's own wording is always kept in message.
     """
     farm = resolve_farm(db, farm_id)
     if farm is None:
@@ -160,6 +164,10 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
         .order_by(FarmOperation.operation_date.desc(), FarmOperation.created_at.desc())
     ).all()
 
+    def issue_out(raw: dict) -> RuleIssueOut:
+        kind, summary = classify_issue(RuleIssue(**raw))
+        return RuleIssueOut(**raw, kind=kind, summary=summary)
+
     signals = [
         OperationSignalOut(
             operation_id=operation.id,
@@ -168,16 +176,21 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
             kb_operation_id=signal.kb_operation_id,
             status="flagged" if signal.status == "blocked" else signal.status,
             reason=signal.reason,
-            issues=[RuleIssueOut(**issue) for issue in signal.issues],
+            issues=[issue_out(issue) for issue in signal.issues],
             checked_at=signal.checked_at,
         )
         for signal, operation in rows
     ]
     counts: dict[str, int] = {}
+    issue_kinds: dict[str, int] = {}
     for item in signals:
         counts[item.status] = counts.get(item.status, 0) + 1
+        for issue in item.issues:
+            issue_kinds[issue.kind] = issue_kinds.get(issue.kind, 0) + 1
     versions = [signal.kb_version for signal, _ in rows if signal.kb_version]
-    return FarmSignalsOut(farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, signals=signals)
+    return FarmSignalsOut(
+        farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, issue_kinds=issue_kinds, signals=signals
+    )
 
 
 @router.get("/{farm_id}/ndvi-image")

@@ -232,3 +232,44 @@ def test_the_planting_date_is_optional():
     check_cycle("sorghum", [op("weed", "weeding", 29)], kb)
 
     assert kb.calls[0][0] == []
+
+
+# ---------------- what kind of problem an issue is ----------------
+
+from app.contracts.knowledge_base import RuleIssue
+from app.services.signal_engine import classify_issue
+
+
+def issue(rule_id: str, message: str) -> RuleIssue:
+    return RuleIssue(rule_id=rule_id, severity="block", message=message)
+
+
+def test_a_step_that_was_never_logged_is_a_gap_in_the_records():
+    kind, summary = classify_issue(issue("maize_r2", "'planting' requires 'land_preparation' to be logged first, and no record of it exists yet."))
+
+    assert kind == "missing_step" and summary == "The land preparation step has not been logged yet."
+
+
+def test_a_job_logged_too_early_or_too_late_is_timing_and_the_numbers_are_kept():
+    blocked = ValidationReport.model_validate(fixture("validate_blocked")).blocking_issues[0]
+
+    kind, summary = classify_issue(blocked)
+
+    assert kind == "timing" and summary == "Logged 66 days after planting; at least 85 are expected."
+    late = issue("x", "First weeding is late. (logged 40 day(s) after 'planting'; maximum is 30.)")
+    assert classify_issue(late) == ("timing", "Logged 40 days after planting; no more than 30 are expected.")
+    window = issue("x", "Flagged. (logged 3 day(s) after 'planting', inside the flagged 5-9 day window.)")
+    assert classify_issue(window)[0] == "timing" and "5 to 9" in classify_issue(window)[1]
+
+
+def test_jobs_in_an_impossible_order_are_order_problems():
+    assert classify_issue(issue("engine-workflow-order", "'land_preparation' cannot be logged now: 'planting' has already been logged"))[0] == "order"
+    assert classify_issue(issue("global-order", "'weeding_1' is dated 2026-06-01, which is earlier than the most recently logged operation"))[0] == "order"
+
+
+def test_too_many_entries_is_a_repeat_problem():
+    assert classify_issue(issue("x", "Spraying limit. (4 'pest_disease_control' entries within the last 14 day(s) as of 2026-06-20; maximum is 3.)"))[0] == "repeat"
+
+
+def test_anything_unrecognised_is_other_and_has_no_made_up_summary():
+    assert classify_issue(issue("maize_r9", "Harvest can only be logged once per planting cycle.")) == ("other", None)

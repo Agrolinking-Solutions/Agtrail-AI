@@ -31,6 +31,49 @@ CYCLE_PLANTING_KEY = "cycle:planting"
 MISSING_STEP = re.compile(r"requires '([^']+)' to be logged first")
 
 
+TIMING = re.compile(
+    r"logged (\d+) day\(s\) after '([^']+)'.*?"
+    r"(?:minimum is (\d+)|maximum is (\d+)|inside the flagged (\d+)-(\d+) day window)",
+    re.S,
+)
+
+
+def _name(operation_id: str) -> str:
+    return operation_id.replace("_", " ")
+
+
+def classify_issue(issue: RuleIssue) -> tuple[str, Optional[str]]:
+    """What kind of problem a Knowledge Base issue is, and a plain one-line summary
+    where the message follows a fixed pattern. The kinds matter because they mean
+    different things to a farmer:
+
+      missing_step  an earlier job was never logged: a gap in the records, not
+                    necessarily a mistake on the farm
+      timing        the job was logged too early or too late
+      order         jobs were logged in an impossible order
+      repeat        the job was logged more often than the rules allow
+      other         anything else, shown with the Knowledge Base's own wording
+    """
+    missing = MISSING_STEP.search(issue.message)
+    if missing:
+        needed = _name(missing.group(1))
+        return "missing_step", f"The {needed} step has not been logged yet."
+    if issue.rule_id in ("global-order", "engine-workflow-order"):
+        return "order", "Logged in an order the crop's steps do not allow."
+    timing = TIMING.search(issue.message)
+    if timing:
+        days, after = timing.group(1), _name(timing.group(2))
+        minimum, maximum, low, high = timing.group(3), timing.group(4), timing.group(5), timing.group(6)
+        if minimum:
+            return "timing", f"Logged {days} days after {after}; at least {minimum} are expected."
+        if maximum:
+            return "timing", f"Logged {days} days after {after}; no more than {maximum} are expected."
+        return "timing", f"Logged {days} days after {after}, inside a range the rules flag ({low} to {high} days)."
+    if "entries within the last" in issue.message:
+        return "repeat", "Logged more often than the rules allow."
+    return "other", None
+
+
 class KnowledgeBase(Protocol):
     def crop_steps(self, crop_id: str) -> ClientResult[CropSteps]: ...
     def validate(self, crop_id: str, history: list[dict], new_operation: dict, region: Optional[str] = None) -> ClientResult[ValidationReport]: ...
