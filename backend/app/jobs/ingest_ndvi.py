@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -104,12 +104,20 @@ def _upsert_scenes(db: Session, farm: Farm, scenes) -> int:
     return len(scenes)
 
 
+# A daily run only needs the recent passes: older ones are already stored and
+# Copernicus finishes processing a pass within days. A farm with no passes yet
+# (newly mapped) gets a longer first window to build its history.
+RECENT_DAYS = 20
+FIRST_RUN_DAYS = 90
+
+
 def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
     """Per-pass NDVI with clouds removed pixel by pixel. Re-running a window
     refreshes it, so the last pass or two can still be corrected as Copernicus
-    finishes processing them."""
-    if start is None or end is None:
-        start, end = default_window()
+    finishes processing them. With no dates given, each farm gets the recent
+    window, or the longer first one if it has no passes stored yet."""
+    explicit = start is not None and end is not None
+    end = end or date.today()
 
     summary = {"farms": 0, "scenes_written": 0, "farms_failed": 0}
     token = get_access_token()
@@ -117,7 +125,11 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
     with SessionLocal() as db:
         farms = _mapped_farms(db)
         summary["farms"] = len(farms)
+        have_history = set(db.execute(select(FarmNdviScene.farm_id).distinct()).scalars().all())
         for farm, boundary_geojson in farms:
+            if not explicit:
+                days = RECENT_DAYS if farm.id in have_history else FIRST_RUN_DAYS
+                start = end - timedelta(days=days)
             try:
                 scenes = fetch_farm_scenes(boundary_geojson, start, end, token)
             except Exception as exc:

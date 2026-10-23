@@ -10,9 +10,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_api_key
 from app.models.farm import Farm
+from app.models.farm_operation import FarmOperation
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
+from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
 from app.schemas.ndvi import CropHealthOut, NdviObservationOut
+from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
 from app.services import crop_health
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
@@ -134,6 +137,47 @@ def get_crop_health(farm_id: uuid.UUID, db: Session = Depends(get_db)):
         min_clear_fraction=crop_health.MIN_CLEAR_FRACTION,
         fresh_within_days=crop_health.FRESH_WITHIN_DAYS,
     )
+
+
+@router.get("/{farm_id}/signals", response_model=FarmSignalsOut)
+def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    What the crop rules say about each operation logged on the farm, newest first.
+    status is "ok", "warning", "flagged" (a rule is broken), "not_applicable" (the
+    crop has no such step) or "unknown" (not judged, and reason says why). An
+    operation is only judged when it can be identified for certain. These are
+    inferred from the logged data, not seen on the farm, and are rebuilt every time
+    the judging job runs.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    rows = db.execute(
+        select(OperationSignal, FarmOperation)
+        .join(FarmOperation, FarmOperation.id == OperationSignal.operation_id)
+        .where(OperationSignal.farm_id == farm.id)
+        .order_by(FarmOperation.operation_date.desc(), FarmOperation.created_at.desc())
+    ).all()
+
+    signals = [
+        OperationSignalOut(
+            operation_id=operation.id,
+            operation_date=operation.operation_date,
+            logged_type=operation.logged_type_raw,
+            kb_operation_id=signal.kb_operation_id,
+            status="flagged" if signal.status == "blocked" else signal.status,
+            reason=signal.reason,
+            issues=[RuleIssueOut(**issue) for issue in signal.issues],
+            checked_at=signal.checked_at,
+        )
+        for signal, operation in rows
+    ]
+    counts: dict[str, int] = {}
+    for item in signals:
+        counts[item.status] = counts.get(item.status, 0) + 1
+    versions = [signal.kb_version for signal, _ in rows if signal.kb_version]
+    return FarmSignalsOut(farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, signals=signals)
 
 
 @router.get("/{farm_id}/ndvi-image")
