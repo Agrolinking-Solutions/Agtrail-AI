@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "StateRow": {
+      "properties": {
+        "agro_zone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agro Zone"
+        },
+        "agro_zone_crosses_borders": {
+          "title": "Agro Zone Crosses Borders",
+          "type": "boolean"
+        },
+        "agro_zone_review_status": {
+          "title": "Agro Zone Review Status",
+          "type": "string"
+        },
+        "geo_zone": {
+          "title": "Geo Zone",
+          "type": "string"
+        },
+        "has_pis_state_prices": {
+          "title": "Has Pis State Prices",
+          "type": "boolean"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "geo_zone",
+        "agro_zone",
+        "agro_zone_crosses_borders",
+        "has_pis_state_prices",
+        "agro_zone_review_status"
+      ],
+      "title": "StateRow",
+      "type": "object"
+    }
+  },
+  "description": "Each state's geopolitical zone and default agro-ecological zone.",
+  "properties": {
+    "states": {
+      "items": {
+        "$ref": "#/$defs/StateRow"
+      },
+      "title": "States",
+      "type": "array"
+    }
+  },
+  "required": [
+    "states"
+  ],
+  "title": "RegionMapping",
+  "type": "object"
+}

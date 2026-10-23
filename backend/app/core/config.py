@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # webhook secret until AgTrail issues a separate key for this direction.
     AGTRAIL_OUTBOUND_SECRET: str = ""
 
+    # Knowledge Base: the crop rules and shared reference data. Read-only, no key.
+    KNOWLEDGE_BASE_URL: str = "https://validation.agrolinking.com"
+
     # Copernicus Data Space (Sentinel-2 NDVI), OAuth client credentials
     CDSE_CLIENT_ID: str = ""
     CDSE_CLIENT_SECRET: str = ""
