@@ -152,6 +152,10 @@ def test_the_endpoint_lists_signals_newest_first_and_calls_a_block_flagged(clien
     assert body["counts"] == {"unknown": 1, "flagged": 1, "ok": 1}
     flagged = body["signals"][1]
     assert flagged["kb_operation_id"] == "harvest" and flagged["issues"][0]["rule_id"] == "sorghum_r8"
+    assert flagged["issues"][0]["kind"] == "timing"
+    assert flagged["issues"][0]["summary"] == "Logged 66 days after planting; at least 85 are expected."
+    assert "85 days after planting" in flagged["issues"][0]["message"]  # the KB's own wording is kept
+    assert body["issue_kinds"] == {"timing": 2}  # the block and the warning it came with
 
 
 def test_a_farm_never_judged_has_an_empty_list_and_an_unknown_farm_is_404(client, db_session):
