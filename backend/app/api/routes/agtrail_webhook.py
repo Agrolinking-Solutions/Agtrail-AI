@@ -24,6 +24,7 @@ from app.services.agtrail_webhook_security import verify_webhook_signature
 from app.services.agtrail_webhook_idempotency import event_already_received, record_event_received
 from app.services.farm_records import record_operation, upsert_crop_cycle
 from app.services.job_queue import JOB_ARCHIVE_IMAGE, JOB_RUN_INFERENCE, enqueue
+from app.services.image_placeholders import is_placeholder_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,9 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
         db.add(visit)
         db.flush()
 
+        # No photo was taken, only a stand-in link, which nothing can fetch.
+        placeholder = is_placeholder_image_url(payload.image.url)
+
         image = FarmImage(
             visit_id=visit.id,
             storage_url=payload.image.url,
@@ -152,7 +156,7 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
             img_lng=payload.image.longitude,
             captured_at=payload.image.captured_at,
             source=ImageSource.agtrail_webhook,
-            status=ImageStatus.pending,
+            status=ImageStatus.no_photo if placeholder else ImageStatus.pending,
             source_payload_raw=redacted_payload(payload),
             farm_operation_id=operation.id if operation else None,
         )
@@ -164,11 +168,12 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
         # request commits, the job survives in the database and a worker
         # (app/worker.py) picks it up, instead of the image being silently
         # stuck pending forever.
-        enqueue(db, JOB_RUN_INFERENCE, {"image_id": str(image.id)})
-        # Only when a bucket is configured, otherwise every image would
-        # queue a job that can only fail and retry.
-        if settings.archive_enabled:
-            enqueue(db, JOB_ARCHIVE_IMAGE, {"image_id": str(image.id)})
+        if not placeholder:
+            enqueue(db, JOB_RUN_INFERENCE, {"image_id": str(image.id)})
+            # Only when a bucket is configured, otherwise every image would
+            # queue a job that can only fail and retry.
+            if settings.archive_enabled:
+                enqueue(db, JOB_ARCHIVE_IMAGE, {"image_id": str(image.id)})
 
         return farm, image
 

@@ -17,7 +17,7 @@ from sqlalchemy import String, cast, select
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
-from app.models.image import FarmImage
+from app.models.image import FarmImage, ImageStatus
 from app.models.job import Job, JobStatus
 from app.services.job_queue import JOB_ARCHIVE_IMAGE, enqueue
 
@@ -33,6 +33,7 @@ def _images_to_archive(db) -> list:
     return db.execute(
         select(FarmImage.id)
         .where(FarmImage.archived_url.is_(None))
+        .where(FarmImage.status != ImageStatus.no_photo)
         .where(cast(FarmImage.id, String).not_in(has_job))
     ).scalars().all()
 
