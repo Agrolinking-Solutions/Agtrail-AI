@@ -131,6 +131,19 @@ Schedule it monthly (matching AgTrail's own suggested cadence, and how
 often boundaries actually change) — same Render Cron Job pattern as the
 worker, `python -m app.jobs.sync_boundaries` as the command.
 
+## Satellite readings
+
+```bash
+python -m app.jobs.ingest_ndvi   # every mapped farm: 10-day NDVI, plus one row per satellite pass
+```
+
+Schedule it **daily** (Sentinel-2 passes about every 5 days). It is safe to
+re-run: rows are updated, never duplicated. The per-pass rows go in
+`farm_ndvi_scenes`, with clouds removed pixel by pixel, and are served by
+`GET /farms/{id}/crop-health` (latest usable reading and its age in days).
+A farm with no boundary is skipped, so `sync_boundaries` above has to run
+first for newly mapped farms to appear.
+
 ## Deploys and migrations
 
 The production platform redeploys on every merge to `main`. The web container
