@@ -18,6 +18,10 @@ class RuleIssueOut(BaseModel):
 
 class OperationSignalOut(BaseModel):
     operation_id: uuid.UUID
+    crop_cycle_id: uuid.UUID
+    # The Knowledge Base crop the rules were taken from, and the crop as typed in AgTrail.
+    crop_id: str | None
+    crop: str
     operation_date: date
     logged_type: str
     # The Knowledge Base step this was identified as, when it could be told for certain.

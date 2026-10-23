@@ -273,3 +273,36 @@ def test_too_many_entries_is_a_repeat_problem():
 
 def test_anything_unrecognised_is_other_and_has_no_made_up_summary():
     assert classify_issue(issue("maize_r9", "Harvest can only be logged once per planting cycle.")) == ("other", None)
+
+
+# ---------------- same-day entries, and repeated messages ----------------
+
+def test_operations_logged_on_the_same_day_are_judged_in_the_order_the_crop_runs_its_steps():
+    kb = FakeKnowledgeBase()
+    # Saved in the "wrong" order: the harvest first, then the planting, all on one day.
+    cycle = [op("harvest", "harvesting", 20), op("plant", "planting", 20)]
+
+    verdicts = check_cycle("sorghum", cycle, kb)
+
+    assert [call[1]["operation_id"] for call in kb.calls] == ["planting", "harvest"]
+    assert [h["operation_id"] for h in kb.calls[1][0]] == ["planting"]
+    assert {v.key for v in verdicts} == {"harvest", "plant"}
+
+
+def test_a_later_date_still_comes_after_an_earlier_one_whatever_the_step_order():
+    kb = FakeKnowledgeBase()
+
+    check_cycle("sorghum", [op("harvest", "harvesting", 5), op("plant", "planting", 20)], kb)
+
+    assert [call[1]["operation_id"] for call in kb.calls] == ["harvest", "planting"]
+
+
+def test_the_same_message_from_two_rules_is_shown_once():
+    twin = {"rule_id": "x", "severity": "block", "message": "'harvest' requires 'transplanting' to be logged first, and no record of it exists yet."}
+    report = {"crop_id": "sorghum", "operation_id": "harvest", "date": "2026-06-20", "blocked": True,
+              "issues": [twin, {**twin, "rule_id": "y"}], "warnings": [], "blocking_issues": [twin, {**twin, "rule_id": "y"}]}
+    kb = FakeKnowledgeBase(reports={"harvest": report})
+
+    verdict = check_cycle("sorghum", [op("harvest", "harvesting", 20)], kb)[0]
+
+    assert verdict.status == "blocked" and len(verdict.issues) == 1

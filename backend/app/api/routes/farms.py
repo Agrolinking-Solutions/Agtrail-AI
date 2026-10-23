@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_api_key
 from app.models.farm import Farm
+from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.models.operation_signal import OperationSignal
@@ -158,8 +159,9 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Farm not found")
 
     rows = db.execute(
-        select(OperationSignal, FarmOperation)
+        select(OperationSignal, FarmOperation, CropCycle)
         .join(FarmOperation, FarmOperation.id == OperationSignal.operation_id)
+        .join(CropCycle, CropCycle.id == OperationSignal.crop_cycle_id)
         .where(OperationSignal.farm_id == farm.id)
         .order_by(FarmOperation.operation_date.desc(), FarmOperation.created_at.desc())
     ).all()
@@ -171,6 +173,9 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     signals = [
         OperationSignalOut(
             operation_id=operation.id,
+            crop_cycle_id=cycle.id,
+            crop_id=cycle.crop_id,
+            crop=cycle.crop_raw,
             operation_date=operation.operation_date,
             logged_type=operation.logged_type_raw,
             kb_operation_id=signal.kb_operation_id,
@@ -179,7 +184,7 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
             issues=[issue_out(issue) for issue in signal.issues],
             checked_at=signal.checked_at,
         )
-        for signal, operation in rows
+        for signal, operation, cycle in rows
     ]
     counts: dict[str, int] = {}
     issue_kinds: dict[str, int] = {}
@@ -187,7 +192,7 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
         counts[item.status] = counts.get(item.status, 0) + 1
         for issue in item.issues:
             issue_kinds[issue.kind] = issue_kinds.get(issue.kind, 0) + 1
-    versions = [signal.kb_version for signal, _ in rows if signal.kb_version]
+    versions = [row[0].kb_version for row in rows if row[0].kb_version]
     return FarmSignalsOut(
         farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, issue_kinds=issue_kinds, signals=signals
     )

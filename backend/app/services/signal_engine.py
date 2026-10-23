@@ -114,6 +114,18 @@ def check_cycle(
     crop_steps = steps_result.value
     assignments = assign_steps(crop_steps, ordered)
 
+    # Operations logged on the same day have no true order: the date has no clock
+    # time, and the order they were saved in says nothing about the order they were
+    # done in. Judging them in the order the crop's steps run (planting before
+    # harvest) stops a same-day entry being flagged as "out of order" for no reason.
+    step_number = {step.operation_id: step.step_number for step in crop_steps.steps}
+    unranked = len(step_number) + 1
+
+    def rank(op: LoggedOperation) -> int:
+        return step_number.get(assignments[op.key].kb_operation_id, unranked)
+
+    ordered = sorted(ordered, key=lambda op: (op.operation_date, rank(op)))
+
     category_of_step = {step.operation_id: step.signal_category for step in crop_steps.steps}
     logged_categories = {op.signal_category for op in ordered if op.signal_category}
 
@@ -143,9 +155,19 @@ def check_cycle(
     return [v for v in verdicts if v.key != CYCLE_PLANTING_KEY]
 
 
+def _unique(issues: list[RuleIssue]) -> list[RuleIssue]:
+    """Several rules can say the same thing in the same words; once is enough."""
+    seen, result = set(), []
+    for issue in issues:
+        if issue.message not in seen:
+            seen.add(issue.message)
+            result.append(issue)
+    return result
+
+
 def _verdict(key, assignment: StepAssignment, report: ValidationReport, category_of_step, logged_categories) -> OperationVerdict:
     blocks, uncertain = [], []
-    for issue in report.blocking_issues:
+    for issue in _unique(report.blocking_issues):
         missing = MISSING_STEP.search(issue.message)
         # "step X was never logged" is only a fact if nothing logged could have been X.
         # If operations of X's kind exist, one of them may be X and we could not tell.
@@ -155,7 +177,7 @@ def _verdict(key, assignment: StepAssignment, report: ValidationReport, category
             blocks.append(issue)
 
     if blocks:
-        return OperationVerdict(key, "blocked", assignment.kb_operation_id, issues=blocks + list(report.warnings))
+        return OperationVerdict(key, "blocked", assignment.kb_operation_id, issues=_unique(blocks + list(report.warnings)))
     if uncertain:
         return OperationVerdict(
             key, "unknown", assignment.kb_operation_id,
@@ -163,5 +185,5 @@ def _verdict(key, assignment: StepAssignment, report: ValidationReport, category
             issues=uncertain,
         )
     if report.warnings:
-        return OperationVerdict(key, "warning", assignment.kb_operation_id, issues=list(report.warnings))
+        return OperationVerdict(key, "warning", assignment.kb_operation_id, issues=_unique(list(report.warnings)))
     return OperationVerdict(key, "ok", assignment.kb_operation_id)
