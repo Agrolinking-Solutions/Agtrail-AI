@@ -11,8 +11,10 @@ import json
 from pathlib import Path
 
 from app.contracts.knowledge_base import CONTRACT_MODELS
+from app.contracts.pis import PIS_CONTRACT_MODELS
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "contracts" / "knowledge_base"
+PIS_CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "contracts" / "pis"
 
 
 def render_schemas() -> dict[str, str]:
@@ -22,11 +24,19 @@ def render_schemas() -> dict[str, str]:
     }
 
 
+def render_pis_schemas() -> dict[str, str]:
+    return {
+        f"{name}.schema.json": json.dumps(model.model_json_schema(), indent=2, sort_keys=True) + "\n"
+        for name, model in PIS_CONTRACT_MODELS.items()
+    }
+
+
 def main() -> None:
-    CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
-    for filename, text in render_schemas().items():
-        (CONTRACTS_DIR / filename).write_text(text)
-        print(f"wrote {CONTRACTS_DIR / filename}")
+    for directory, schemas in ((CONTRACTS_DIR, render_schemas()), (PIS_CONTRACTS_DIR, render_pis_schemas())):
+        directory.mkdir(parents=True, exist_ok=True)
+        for filename, text in schemas.items():
+            (directory / filename).write_text(text)
+            print(f"wrote {directory / filename}")
 
 
 if __name__ == "__main__":

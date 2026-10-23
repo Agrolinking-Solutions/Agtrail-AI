@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "WeatherDay": {
+      "properties": {
+        "condition": {
+          "title": "Condition",
+          "type": "string"
+        },
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "day": {
+          "title": "Day",
+          "type": "string"
+        },
+        "high_c": {
+          "title": "High C",
+          "type": "number"
+        },
+        "humidity_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Humidity Pct"
+        },
+        "low_c": {
+          "title": "Low C",
+          "type": "number"
+        },
+        "rain_mm": {
+          "title": "Rain Mm",
+          "type": "number"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "wind_max_kmh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wind Max Kmh"
+        }
+      },
+      "required": [
+        "date",
+        "day",
+        "condition",
+        "high_c",
+        "low_c",
+        "rain_mm"
+      ],
+      "title": "WeatherDay",
+      "type": "object"
+    },
+    "WeatherPlace": {
+      "properties": {
+        "city": {
+          "title": "City",
+          "type": "string"
+        },
+        "days": {
+          "items": {
+            "$ref": "#/$defs/WeatherDay"
+          },
+          "title": "Days",
+          "type": "array"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zone"
+        },
+        "zone_main_city": {
+          "default": false,
+          "title": "Zone Main City",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "state",
+        "city",
+        "days"
+      ],
+      "title": "WeatherPlace",
+      "type": "object"
+    }
+  },
+  "description": "A 7-day forecast for one city in each state PIS covers.",
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "attribution": {
+      "title": "Attribution",
+      "type": "string"
+    },
+    "issued_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Issued At"
+    },
+    "license": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "License"
+    },
+    "places": {
+      "items": {
+        "$ref": "#/$defs/WeatherPlace"
+      },
+      "title": "Places",
+      "type": "array"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "as_of",
+    "source",
+    "attribution",
+    "places"
+  ],
+  "title": "WeatherToday",
+  "type": "object"
+}

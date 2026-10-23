@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "SeasonMonth": {
+      "properties": {
+        "interpretation": {
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "is_current": {
+          "default": false,
+          "title": "Is Current",
+          "type": "boolean"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "score",
+        "interpretation"
+      ],
+      "title": "SeasonMonth",
+      "type": "object"
+    }
+  },
+  "description": "Where in the price season the current month sits (100 peak harvest, 0 lean).",
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "commodity": {
+      "title": "Commodity",
+      "type": "string"
+    },
+    "current_month": {
+      "title": "Current Month",
+      "type": "string"
+    },
+    "current_score": {
+      "title": "Current Score",
+      "type": "number"
+    },
+    "data_source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Data Source"
+    },
+    "monthly_profile": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SeasonMonth"
+      },
+      "title": "Monthly Profile",
+      "type": "object"
+    },
+    "note": {
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "commodity",
+    "as_of",
+    "current_month",
+    "current_score",
+    "note",
+    "monthly_profile"
+  ],
+  "title": "Seasonality",
+  "type": "object"
+}
