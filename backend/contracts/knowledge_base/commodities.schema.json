@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "CommodityRow": {
+      "properties": {
+        "conversion_factor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Conversion Factor"
+        },
+        "conversion_note": {
+          "title": "Conversion Note",
+          "type": "string"
+        },
+        "crop_id": {
+          "title": "Crop Id",
+          "type": "string"
+        },
+        "pis_commodity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pis Commodity"
+        },
+        "price_status": {
+          "enum": [
+            "priced",
+            "unpriced"
+          ],
+          "title": "Price Status",
+          "type": "string"
+        },
+        "review_status": {
+          "title": "Review Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "crop_id",
+        "pis_commodity",
+        "conversion_factor",
+        "conversion_note",
+        "price_status",
+        "review_status"
+      ],
+      "title": "CommodityRow",
+      "type": "object"
+    }
+  },
+  "description": "Which PIS commodity prices each crop, and the yield conversion factor.",
+  "properties": {
+    "crops": {
+      "items": {
+        "$ref": "#/$defs/CommodityRow"
+      },
+      "title": "Crops",
+      "type": "array"
+    },
+    "pis_commodities_without_a_crop_file": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Pis Commodities Without A Crop File",
+      "type": "object"
+    }
+  },
+  "required": [
+    "crops"
+  ],
+  "title": "CommodityMapping",
+  "type": "object"
+}

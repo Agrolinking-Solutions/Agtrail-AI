@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "Category": {
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "satellite_evidence": {
+          "title": "Satellite Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "satellite_evidence"
+      ],
+      "title": "Category",
+      "type": "object"
+    },
+    "OperationMapping": {
+      "properties": {
+        "kb_category": {
+          "title": "Kb Category",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "review_status": {
+          "title": "Review Status",
+          "type": "string"
+        },
+        "signal_category": {
+          "title": "Signal Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kb_category",
+        "signal_category",
+        "review_status",
+        "reason"
+      ],
+      "title": "OperationMapping",
+      "type": "object"
+    }
+  },
+  "description": "The shared operation categories and the operation_id mapping.",
+  "properties": {
+    "categories": {
+      "items": {
+        "$ref": "#/$defs/Category"
+      },
+      "title": "Categories",
+      "type": "array"
+    },
+    "crop_overrides": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Crop Overrides",
+      "type": "object"
+    },
+    "operations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OperationMapping"
+      },
+      "title": "Operations",
+      "type": "object"
+    },
+    "review_status": {
+      "title": "Review Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "review_status",
+    "categories",
+    "operations"
+  ],
+  "title": "Taxonomy",
+  "type": "object"
+}

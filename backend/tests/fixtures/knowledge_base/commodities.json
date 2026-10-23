@@ -1,0 +1,179 @@
+{
+ "_about": "Maps each Knowledge Base crop to the PIS commodity whose price should be used for its harvest estimate. conversion_factor turns Knowledge Base yield tonnes into tonnes of the product PIS prices. null means not sourced yet: do not show a naira value. Every row marked UNVERIFIED needs agronomist or PIS-team confirmation. 'reviewed-by-data' means the row only records that PIS has no series for that crop.",
+ "crops": [
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Yield is raw cashew nut (RCN). Confirm that PIS 'Cashew Nuts' is a raw nut price and not processed kernel.",
+   "crop_id": "cashew",
+   "pis_commodity": "Cashew Nuts",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "cassava",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Yield is dry beans; PIS cocoa is a dry-bean price (unconfirmed). The Knowledge Base notes its cocoa yield figures were not re-sourced.",
+   "crop_id": "cocoa",
+   "pis_commodity": "Cocoa",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "coffee",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "cotton",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "Cowpea may be priced as white or red beans depending on the variety, and PIS prices them separately. Not decided: needs an agronomist. Until then show tonnes only.",
+   "crop_id": "cowpea",
+   "pis_commodity": "Beans (white)",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": 0.2,
+   "conversion_note": "Knowledge Base yield is FRESH rhizome; PIS prices dried (split) ginger. The Knowledge Base's own ginger note says dried split ginger is roughly 20% of fresh weight, so 0.2 converts fresh tonnes to dried tonnes. Confirm the figure and that PIS is the dried price.",
+   "crop_id": "ginger",
+   "pis_commodity": "Ginger",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "groundnut",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Yield is dry calyx and PIS prices dried calyx. A fresh-weight figure must never be used (fresh is about 10 times heavier).",
+   "crop_id": "hibiscus",
+   "pis_commodity": "Hibiscus",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Yield is grain tonnes and PIS prices grain per tonne. Use 'Maize (yellow)' when the cycle's variety is yellow.",
+   "crop_id": "maize",
+   "pis_commodity": "Maize (white)",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "ofsp",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "oil_palm",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "onion",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "pepper",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "Knowledge Base yield is paddy; PIS 'Rice (local)' is milled rice. A milling factor is needed and has not been sourced. Until then no naira value should be shown for rice.",
+   "crop_id": "rice",
+   "pis_commodity": "Rice (local)",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "rubber",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Yield is tonnes of seed; PIS prices sesame seed per tonne.",
+   "crop_id": "sesame",
+   "pis_commodity": "Sesame",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "tomato",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  },
+  {
+   "conversion_factor": 1.0,
+   "conversion_note": "Same grain basis as maize. Choice of yellow is a proposal: vitamin A varieties are yellow or orange maize.",
+   "crop_id": "vitamin_a_maize",
+   "pis_commodity": "Maize (yellow)",
+   "price_status": "priced",
+   "review_status": "UNVERIFIED"
+  },
+  {
+   "conversion_factor": null,
+   "conversion_note": "No PIS price series yet. Show tonnes only and the message 'no price series yet'.",
+   "crop_id": "yam",
+   "pis_commodity": null,
+   "price_status": "unpriced",
+   "review_status": "reviewed-by-data"
+  }
+ ],
+ "pis_commodities_without_a_crop_file": {
+  "Beans (red)": "Also used by cowpea above, once decided.",
+  "Beans (white)": "Also used by cowpea above, once decided.",
+  "Eggs": "Not a crop.",
+  "Fish (dried)": "Not a crop.",
+  "Meat (beef)": "Not a crop.",
+  "Meat (goat)": "Not a crop.",
+  "Rice": "Legacy combined rice series, being retired in PIS in favour of Rice (local) and Rice (foreign).",
+  "Rice (foreign)": "Imported rice, not a crop grown on the farm.",
+  "Sorghum": "No Knowledge Base crop file.",
+  "Soybeans": "Grown on about 47 AgTrail farms but has no Knowledge Base crop file. First candidate to add.",
+  "Wheat": "No Knowledge Base crop file."
+ },
+ "pis_source": "https://pis-api.agrolinking.com/commodities (checked 22 Oct 2026: 19 commodities)"
+}

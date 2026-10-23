@@ -1,0 +1,26 @@
+{
+  "description": "kb_version changes whenever any Knowledge Base data changes.",
+  "properties": {
+    "commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Commit"
+    },
+    "kb_version": {
+      "title": "Kb Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kb_version"
+  ],
+  "title": "KnowledgeBaseVersion",
+  "type": "object"
+}
