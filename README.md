@@ -131,6 +131,21 @@ Schedule it monthly (matching AgTrail's own suggested cadence, and how
 often boundaries actually change) — same Render Cron Job pattern as the
 worker, `python -m app.jobs.sync_boundaries` as the command.
 
+## Deploys and migrations
+
+The production platform redeploys on every merge to `main`. The web container
+runs `alembic upgrade head` before it starts, so the database schema is always
+brought up to date by the deploy itself. If a migration fails, the container
+exits and the platform keeps the previous version running.
+
+Keep migrations **additive** (add tables and columns, do not rename or drop
+anything in the same release), so the previous version keeps working while the
+new one starts. Set `RUN_MIGRATIONS=false` to skip the step. The worker
+(`app.worker --once`) never runs migrations.
+
+If the platform has a custom start command set, it replaces the one in the
+`Dockerfile` and migrations will not run. Leave it empty.
+
 ## Training
 
 ```bash
