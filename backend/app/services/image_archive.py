@@ -84,7 +84,12 @@ def upload_image_bytes(data: bytes, sha256_hex: str, content_type: str | None) -
     content_type = content_type or "application/octet-stream"
     if settings.S3_BUCKET:
         return _upload_s3(data, key, content_type)
-    return _upload_gcs(data, key, content_type)
+    if settings.GCP_BUCKET_NAME:
+        return _upload_gcs(data, key, content_type)
+    raise RuntimeError(
+        "No storage bucket is configured. Set S3_BUCKET and the other S3_ settings "
+        "(or GCP_BUCKET_NAME) in the app's environment variables, then redeploy."
+    )
 
 
 def archive_image(db: Session, image: FarmImage) -> bool:

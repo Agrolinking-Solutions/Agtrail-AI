@@ -305,3 +305,14 @@ def test_backfill_does_nothing_without_a_bucket(monkeypatch):
     monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "")
 
     assert job.backfill() == 0
+
+
+def test_with_no_bucket_the_error_says_so_instead_of_asking_for_google_credentials(monkeypatch):
+    import app.services.image_archive as image_archive
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "")
+
+    with pytest.raises(RuntimeError, match="No storage bucket is configured"):
+        image_archive.upload_image_bytes(b"photo", "abc123", "image/jpeg")
