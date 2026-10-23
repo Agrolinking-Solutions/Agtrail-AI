@@ -119,6 +119,7 @@ def test_upload_image_bytes_skips_write_if_blob_already_exists(monkeypatch):
 
     fake_blob = FakeBlob()
     monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "old-bucket")
     monkeypatch.setattr(image_archive, "_get_gcs_client", lambda: FakeClient(fake_blob))
 
     url = image_archive.upload_image_bytes(b"data", "abc123", "image/jpeg")
