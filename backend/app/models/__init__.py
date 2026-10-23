@@ -7,7 +7,7 @@ from app.models.image import FarmImage, ImageSource, ImageStatus
 from app.models.prediction import Prediction, FarmStage
 from app.models.sync_log import AgtrailSyncLog, SyncStatus, SyncDirection
 from app.models.job import Job, JobStatus
-from app.models.ndvi import FarmNdviObservation
+from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
 from app.models.aliases import OperationTypeAlias, CropAlias
@@ -23,4 +23,5 @@ __all__ = [
     "AgtrailSyncLog", "SyncStatus", "SyncDirection",
     "Job", "JobStatus",
     "FarmNdviObservation",
+    "FarmNdviScene",
 ]
