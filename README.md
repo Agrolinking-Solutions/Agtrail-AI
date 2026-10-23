@@ -144,6 +144,22 @@ re-run: rows are updated, never duplicated. The per-pass rows go in
 A farm with no boundary is skipped, so `sync_boundaries` above has to run
 first for newly mapped farms to appear.
 
+## Rule checks on logged operations
+
+```bash
+python -m app.jobs.judge_operations   # judge every crop cycle's operations against the Knowledge Base
+```
+
+Schedule it **hourly**. Each run rebuilds one verdict per operation in
+`operation_signals`, so new operations and Knowledge Base changes are picked up
+on the next run. If the Knowledge Base cannot be reached, the old verdicts are
+kept. Served by `GET /farms/{id}/signals`: `ok`, `warning`, `flagged` (a rule is
+broken), `not_applicable` or `unknown` (not judged, with the reason). An operation
+is only judged when it can be identified for certain.
+
+The daily `ingest_ndvi` run looks back 20 days for farms that already have
+satellite passes, and 90 days for a farm that has none yet.
+
 ## Deploys and migrations
 
 The production platform redeploys on every merge to `main`. The web container
