@@ -15,10 +15,15 @@ from app.models.farm_operation import FarmOperation
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
+from app.schemas.intelligence import FarmIntelligenceOut
 from app.schemas.ndvi import CropHealthOut, NdviObservationOut
 from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
 from app.contracts.knowledge_base import RuleIssue
+from app.clients.knowledge_base import get_knowledge_base_client
+from app.clients.pis import get_pis_client
+from app.models.farmer import Farmer
 from app.services import crop_health
+from app.services.farm_intelligence import build_intelligence
 from app.services.signal_engine import classify_issue
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
@@ -195,6 +200,46 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     versions = [row[0].kb_version for row in rows if row[0].kb_version]
     return FarmSignalsOut(
         farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, issue_kinds=issue_kinds, signals=signals
+    )
+
+
+def knowledge_base():
+    return get_knowledge_base_client()
+
+
+def pis():
+    return get_pis_client()
+
+
+@router.get("/{farm_id}/intelligence", response_model=FarmIntelligenceOut)
+def get_farm_intelligence(
+    farm_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    kb=Depends(knowledge_base),
+    prices=Depends(pis),
+):
+    """
+    One summary for the farm: its crops, what the satellite sees (observed), what the
+    crop rules say about the operations logged (inferred), the crop's price and 30-day
+    outlook and the weather (estimates), each labelled with how it was obtained and
+    when. A block with nothing to say, or a service that could not be reached, says so
+    inside its own block; the rest of the summary is still returned.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    farmer = db.get(Farmer, farm.farmer_id)
+    cycles = db.execute(select(CropCycle).where(CropCycle.farm_id == farm.id)).scalars().all()
+    scenes = db.execute(select(FarmNdviScene).where(FarmNdviScene.farm_id == farm.id)).scalars().all()
+    signal_rows = db.execute(
+        select(OperationSignal, FarmOperation, CropCycle)
+        .join(FarmOperation, FarmOperation.id == OperationSignal.operation_id)
+        .join(CropCycle, CropCycle.id == OperationSignal.crop_cycle_id)
+        .where(OperationSignal.farm_id == farm.id)
+    ).all()
+    return build_intelligence(
+        farm.id, farmer.state if farmer else None, cycles, scenes, [tuple(row) for row in signal_rows], kb, prices
     )
 
 
