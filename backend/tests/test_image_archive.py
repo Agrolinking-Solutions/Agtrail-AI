@@ -4,7 +4,7 @@ import hashlib
 
 from tests.conftest import requires_db
 
-pytestmark = requires_db
+pytestmark = []
 
 FAKE_IMAGE_BYTES = b"not a real jpeg, just needs to hash consistently"
 
@@ -30,6 +30,7 @@ def _make_image(db_session, storage_url="https://agtrail.example.com/photo.jpg")
     return image
 
 
+@requires_db
 def test_archive_image_uploads_and_records_hash(db_session, monkeypatch):
     import app.services.image_archive as image_archive
 
@@ -52,6 +53,7 @@ def test_archive_image_uploads_and_records_hash(db_session, monkeypatch):
     assert uploads == [(FAKE_IMAGE_BYTES, expected_hash, "image/jpeg")]
 
 
+@requires_db
 def test_archive_image_is_a_no_op_if_already_archived(db_session, monkeypatch):
     import app.services.image_archive as image_archive
 
@@ -70,6 +72,7 @@ def test_archive_image_is_a_no_op_if_already_archived(db_session, monkeypatch):
     assert image.archived_url == "gs://bucket/farm-images/already-there"
 
 
+@requires_db
 def test_archive_image_for_id_skips_missing_image(db_session, monkeypatch):
     import uuid
 
@@ -112,8 +115,11 @@ def test_upload_image_bytes_skips_write_if_blob_already_exists(monkeypatch):
         def bucket(self, name):
             return FakeBucket(self._blob)
 
+    from app.core.config import settings
+
     fake_blob = FakeBlob()
-    monkeypatch.setattr(image_archive, "_get_client", lambda: FakeClient(fake_blob))
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(image_archive, "_get_gcs_client", lambda: FakeClient(fake_blob))
 
     url = image_archive.upload_image_bytes(b"data", "abc123", "image/jpeg")
 
@@ -121,6 +127,7 @@ def test_upload_image_bytes_skips_write_if_blob_already_exists(monkeypatch):
     assert url.endswith("farm-images/abc123")
 
 
+@requires_db
 def test_archive_image_refuses_a_non_image(db_session, monkeypatch):
     import app.services.image_archive as image_archive
 
@@ -137,3 +144,164 @@ def test_archive_image_refuses_a_non_image(db_session, monkeypatch):
     assert uploads == []
     assert image.archived_url is None
     assert image.content_sha256 is None
+
+
+# ---------------- which storage, and how it is called (no database needed) ----------------
+
+import pytest
+from botocore.exceptions import ClientError
+
+
+class FakeS3:
+    def __init__(self, existing=False, head_error="404"):
+        self.existing, self.head_error, self.puts = existing, head_error, []
+
+    def head_object(self, Bucket, Key):
+        if self.existing:
+            return {}
+        raise ClientError({"Error": {"Code": self.head_error}}, "HeadObject")
+
+    def put_object(self, **kwargs):
+        self.puts.append(kwargs)
+
+
+@pytest.fixture
+def s3_settings(monkeypatch):
+    import app.services.image_archive as image_archive
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "S3_BUCKET", "aglens-images")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "")
+    return image_archive
+
+
+def test_the_s3_bucket_is_used_and_the_content_type_is_stored_with_the_file(s3_settings, monkeypatch):
+    fake = FakeS3()
+    monkeypatch.setattr(s3_settings, "_get_s3_client", lambda: fake)
+
+    pointer = s3_settings.upload_image_bytes(b"photo", "abc123", "image/jpeg")
+
+    assert pointer == "s3://aglens-images/farm-images/abc123"
+    assert fake.puts == [{"Bucket": "aglens-images", "Key": "farm-images/abc123", "Body": b"photo", "ContentType": "image/jpeg"}]
+
+
+def test_a_file_already_in_the_bucket_is_not_written_again(s3_settings, monkeypatch):
+    fake = FakeS3(existing=True)
+    monkeypatch.setattr(s3_settings, "_get_s3_client", lambda: fake)
+
+    assert s3_settings.upload_image_bytes(b"photo", "abc123", None) == "s3://aglens-images/farm-images/abc123"
+    assert fake.puts == []
+
+
+def test_an_unknown_content_type_is_stored_as_a_plain_binary(s3_settings, monkeypatch):
+    fake = FakeS3()
+    monkeypatch.setattr(s3_settings, "_get_s3_client", lambda: fake)
+
+    s3_settings.upload_image_bytes(b"photo", "abc123", None)
+
+    assert fake.puts[0]["ContentType"] == "application/octet-stream"
+
+
+def test_a_real_storage_error_is_raised_not_mistaken_for_a_missing_file(s3_settings, monkeypatch):
+    monkeypatch.setattr(s3_settings, "_get_s3_client", lambda: FakeS3(head_error="AccessDenied"))
+
+    with pytest.raises(ClientError):
+        s3_settings.upload_image_bytes(b"photo", "abc123", "image/jpeg")
+
+
+def test_the_s3_client_is_set_up_the_way_garage_needs(monkeypatch):
+    import app.services.image_archive as image_archive
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "S3_ENDPOINT", "https://s3.example.test")
+    monkeypatch.setattr(settings, "S3_REGION", "garage")
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "key")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "secret")
+    monkeypatch.setattr(image_archive, "_s3_client", None)
+
+    client = image_archive._get_s3_client()
+
+    assert client.meta.endpoint_url == "https://s3.example.test"
+    assert client.meta.region_name == "garage"
+    assert client.meta.config.s3["addressing_style"] == "path"
+    monkeypatch.setattr(image_archive, "_s3_client", None)
+
+
+def test_google_storage_is_only_the_fallback(monkeypatch):
+    import app.services.image_archive as image_archive
+    from app.core.config import settings
+
+    class Blob:
+        def exists(self):
+            return False
+
+        def upload_from_string(self, data, content_type):
+            uploads.append((data, content_type))
+
+    class Bucket:
+        def blob(self, key):
+            uploads.append(key)
+            return Blob()
+
+    class Client:
+        def bucket(self, name):
+            return Bucket()
+
+    uploads = []
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "old-bucket")
+    monkeypatch.setattr(image_archive, "_get_gcs_client", lambda: Client())
+
+    assert image_archive.upload_image_bytes(b"photo", "abc123", "image/png") == "gs://old-bucket/farm-images/abc123"
+    assert uploads == ["farm-images/abc123", (b"photo", "image/png")]
+
+
+def test_archiving_is_on_when_either_bucket_is_set_and_off_when_neither_is(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "")
+    assert settings.archive_enabled is False
+    monkeypatch.setattr(settings, "S3_BUCKET", "aglens-images")
+    assert settings.archive_enabled is True
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "old-bucket")
+    assert settings.archive_enabled is True
+
+
+# ---------------- backfilling images that arrived before archiving was on ----------------
+
+@requires_db
+def test_backfill_queues_only_images_that_are_not_archived_and_not_already_queued(db_session, monkeypatch):
+    import app.jobs.backfill_archive as job
+    from app.core.config import settings
+    from app.models.job import Job
+    from app.services.job_queue import JOB_ARCHIVE_IMAGE, enqueue
+
+    waiting = _make_image(db_session, "https://agtrail.example.com/a.jpg")
+    done = _make_image(db_session, "https://agtrail.example.com/b.jpg")
+    done.archived_url = "s3://aglens-images/farm-images/x"
+    queued = _make_image(db_session, "https://agtrail.example.com/c.jpg")
+    enqueue(db_session, JOB_ARCHIVE_IMAGE, {"image_id": str(queued.id)})
+    db_session.commit()
+    before = db_session.query(Job).filter(Job.job_type == JOB_ARCHIVE_IMAGE).count()
+
+    monkeypatch.setattr(settings, "S3_BUCKET", "aglens-images")
+    monkeypatch.setattr(job, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+
+    assert job.backfill() == 1
+    jobs = db_session.query(Job).filter(Job.job_type == JOB_ARCHIVE_IMAGE).all()
+    assert len(jobs) == before + 1
+    assert str(waiting.id) in {j.payload["image_id"] for j in jobs}
+    assert job.backfill() == 0  # running again adds nothing
+
+
+def test_backfill_does_nothing_without_a_bucket(monkeypatch):
+    import app.jobs.backfill_archive as job
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
+    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "")
+
+    assert job.backfill() == 0

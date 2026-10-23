@@ -144,6 +144,32 @@ re-run: rows are updated, never duplicated. The per-pass rows go in
 A farm with no boundary is skipped, so `sync_boundaries` above has to run
 first for newly mapped farms to appear.
 
+## Image archive
+
+Each monitoring photo is copied from AgTrail's own link into our storage, so it
+outlives AgTrail's links and a prediction can always be re-checked. Files are
+named by their content hash, so the same photo is stored once.
+
+Storage is our private S3-compatible bucket on the VPS (Garage). Set these five
+in Coolify (Environment Variables, **Buildtime off**) and redeploy; the secret
+never goes in git, chat or tickets:
+
+```
+S3_ENDPOINT  S3_REGION  S3_BUCKET  S3_ACCESS_KEY  S3_SECRET_KEY
+```
+
+If `S3_BUCKET` is empty and `GCP_BUCKET_NAME` is set, Google Cloud Storage is used
+instead. If both are empty, archiving is off and no archive jobs are queued.
+`farm_images.archived_url` holds a pointer (`s3://bucket/key`), not a link: files
+are private, so a link that works for a limited time is made from the pointer when
+one is needed (`generate_presigned_url`, up to 7 days).
+
+Photos that arrived before archiving was on are queued once with
+`python -m app.jobs.backfill_archive` (safe to run again); the worker then copies them.
+
+Limits: 100 MB per request (Cloudflare). **No backups yet**: the bucket is a single
+server disk, so it is not the only copy of anything critical until backups exist.
+
 ## Rule checks on logged operations
 
 ```bash
