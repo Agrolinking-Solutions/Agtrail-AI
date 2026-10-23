@@ -167,7 +167,7 @@ def _process_event(db: Session, payload) -> tuple[Farm, FarmImage | None]:
         enqueue(db, JOB_RUN_INFERENCE, {"image_id": str(image.id)})
         # Only when a bucket is configured, otherwise every image would
         # queue a job that can only fail and retry.
-        if settings.GCP_BUCKET_NAME:
+        if settings.archive_enabled:
             enqueue(db, JOB_ARCHIVE_IMAGE, {"image_id": str(image.id)})
 
         return farm, image

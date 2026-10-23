@@ -2,6 +2,7 @@
 
 import copy
 
+import pytest
 from sqlalchemy import func, select
 
 from tests.conftest import API_KEY, load_payload, post_event, queued_image_ids, requires_db
@@ -176,13 +177,14 @@ def test_readiness_checks_database(client):
     assert client.get("/health/ready").json() == {"status": "ok"}
 
 
-def test_monitoring_image_queues_archive_when_bucket_configured(client, db_session, monkeypatch):
+@pytest.mark.parametrize("setting", ["S3_BUCKET", "GCP_BUCKET_NAME"])
+def test_monitoring_image_queues_archive_when_bucket_configured(client, db_session, monkeypatch, setting):
     from sqlalchemy import select
 
     from app.core.config import settings
     from app.models.image import FarmImage
 
-    monkeypatch.setattr(settings, "GCP_BUCKET_NAME", "test-bucket")
+    monkeypatch.setattr(settings, setting, "test-bucket")
 
     response = post_event(client, load_payload("test_payload.json"))
 

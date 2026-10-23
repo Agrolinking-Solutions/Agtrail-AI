@@ -16,6 +16,7 @@ psycopg2-binary==2.9.13
 geoalchemy2==0.20.0
 
 # Storage
+boto3==1.43.118
 google-cloud-storage==3.17.0
 
 # Config

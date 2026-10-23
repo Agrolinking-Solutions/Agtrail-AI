@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     DB_SSL_MODE: str = "require"
 
+    # Image archive on our own S3-compatible storage (Garage on the VPS). When
+    # S3_BUCKET is set it is used; Google Cloud Storage below is only the fallback.
+    S3_ENDPOINT: str = ""
+    S3_REGION: str = "garage"
+    S3_BUCKET: str = ""
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+
     # Cloud Storage
     GCP_PROJECT_ID: str = ""
     GCP_BUCKET_NAME: str = ""
@@ -101,6 +109,11 @@ class Settings(BaseSettings):
             if problems:
                 raise ValueError("Unsafe production configuration: " + "; ".join(problems))
         return self
+
+    @property
+    def archive_enabled(self) -> bool:
+        """Whether images are copied to our own storage at all."""
+        return bool(self.S3_BUCKET or self.GCP_BUCKET_NAME)
 
     @property
     def is_production(self) -> bool:
