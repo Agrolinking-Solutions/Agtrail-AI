@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "OutlookEntry": {
+      "properties": {
+        "capped": {
+          "default": false,
+          "title": "Capped",
+          "type": "boolean"
+        },
+        "direction": {
+          "title": "Direction",
+          "type": "string"
+        },
+        "pct_change_30d": {
+          "title": "Pct Change 30D",
+          "type": "number"
+        },
+        "signal": {
+          "title": "Signal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pct_change_30d",
+        "direction",
+        "signal"
+      ],
+      "title": "OutlookEntry",
+      "type": "object"
+    }
+  },
+  "description": "Expected 30-day price change for each commodity.",
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "avg_pct_change": {
+      "title": "Avg Pct Change",
+      "type": "number"
+    },
+    "direction": {
+      "title": "Direction",
+      "type": "string"
+    },
+    "interpretation": {
+      "title": "Interpretation",
+      "type": "string"
+    },
+    "per_commodity": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OutlookEntry"
+      },
+      "title": "Per Commodity",
+      "type": "object"
+    },
+    "signal": {
+      "title": "Signal",
+      "type": "string"
+    }
+  },
+  "required": [
+    "as_of",
+    "avg_pct_change",
+    "direction",
+    "signal",
+    "interpretation",
+    "per_commodity"
+  ],
+  "title": "Outlook30d",
+  "type": "object"
+}

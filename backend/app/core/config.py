@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # Knowledge Base: the crop rules and shared reference data. Read-only, no key.
     KNOWLEDGE_BASE_URL: str = "https://validation.agrolinking.com"
 
+    # PIS: commodity prices, the 30-day outlook and weather. Read-only, no key.
+    PIS_API_URL: str = "https://pis-api.agrolinking.com"
+
     # Copernicus Data Space (Sentinel-2 NDVI), OAuth client credentials
     CDSE_CLIENT_ID: str = ""
     CDSE_CLIENT_SECRET: str = ""

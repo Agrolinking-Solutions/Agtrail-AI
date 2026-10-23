@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "Horizon": {
+      "properties": {
+        "direction": {
+          "title": "Direction",
+          "type": "string"
+        },
+        "forecast_date": {
+          "title": "Forecast Date",
+          "type": "string"
+        },
+        "forecast_price": {
+          "title": "Forecast Price",
+          "type": "number"
+        },
+        "pct_change": {
+          "title": "Pct Change",
+          "type": "number"
+        }
+      },
+      "required": [
+        "forecast_date",
+        "forecast_price",
+        "pct_change",
+        "direction"
+      ],
+      "title": "Horizon",
+      "type": "object"
+    },
+    "LatestRealPrice": {
+      "properties": {
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "price_per_unit": {
+          "title": "Price Per Unit",
+          "type": "number"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "price_per_unit",
+        "date",
+        "source"
+      ],
+      "title": "LatestRealPrice",
+      "type": "object"
+    }
+  },
+  "description": "The price now, how real it is, and the forecast at each horizon.",
+  "properties": {
+    "commodity": {
+      "title": "Commodity",
+      "type": "string"
+    },
+    "currency": {
+      "default": "NGN",
+      "title": "Currency",
+      "type": "string"
+    },
+    "horizons": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Horizon"
+      },
+      "title": "Horizons",
+      "type": "object"
+    },
+    "last_known_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Known Date"
+    },
+    "latest_real_price": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LatestRealPrice"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "run_date": {
+      "title": "Run Date",
+      "type": "string"
+    },
+    "start_is_estimate": {
+      "default": false,
+      "title": "Start Is Estimate",
+      "type": "boolean"
+    },
+    "today_date": {
+      "title": "Today Date",
+      "type": "string"
+    },
+    "today_price_per_unit": {
+      "title": "Today Price Per Unit",
+      "type": "number"
+    },
+    "unit_label": {
+      "title": "Unit Label",
+      "type": "string"
+    }
+  },
+  "required": [
+    "commodity",
+    "run_date",
+    "unit_label",
+    "today_price_per_unit",
+    "today_date"
+  ],
+  "title": "CommodityForecast",
+  "type": "object"
+}

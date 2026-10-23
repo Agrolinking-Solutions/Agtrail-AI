@@ -1,0 +1,25 @@
+{
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "timestamp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timestamp"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "PisHealth",
+  "type": "object"
+}
