@@ -95,8 +95,68 @@ class KnowledgeBaseVersion(_Contract):
     commit: Optional[str] = None
 
 
+class CropStep(_Contract):
+    step_number: int
+    operation_id: str
+    name: str
+    signal_category: Optional[str] = None
+    required: bool = False
+
+
+class CropSteps(_Contract):
+    """A crop's steps in workflow order, each with its shared signal category."""
+
+    crop_id: str
+    steps: list[CropStep]
+
+    def steps_in_category(self, signal_category: str) -> list[CropStep]:
+        return [step for step in self.steps if step.signal_category == signal_category]
+
+
+class RuleIssue(_Contract):
+    rule_id: str
+    severity: str
+    message: str
+
+
+class ValidationReport(_Contract):
+    """The Knowledge Base's verdict on one operation, given the history before it."""
+
+    crop_id: str
+    operation_id: str
+    date: str
+    blocked: bool
+    issues: list[RuleIssue] = Field(default_factory=list)
+    warnings: list[RuleIssue] = Field(default_factory=list)
+    blocking_issues: list[RuleIssue] = Field(default_factory=list)
+
+
+class NextStep(_Contract):
+    operation_id: str
+    status: str
+    message: str
+    depends_on_operation_id: Optional[str] = None
+    depends_on_date: Optional[str] = None
+    earliest_date: Optional[str] = None
+    latest_date: Optional[str] = None
+    days_until_due: Optional[int] = None
+    days_overdue: Optional[int] = None
+
+
+class Suggestions(_Contract):
+    """What the crop's rules expect to be logged next."""
+
+    crop_id: str
+    as_of: str
+    cycle_status: str
+    suggestion: Optional[NextStep] = None
+
+
 # Used by the schema export and its test.
 CONTRACT_MODELS = {
+    "crop_steps": CropSteps,
+    "validation": ValidationReport,
+    "suggestions": Suggestions,
     "taxonomy": Taxonomy,
     "commodities": CommodityMapping,
     "regions": RegionMapping,

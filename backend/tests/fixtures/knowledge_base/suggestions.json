@@ -1,0 +1,1 @@
+{"crop_id":"sorghum","as_of":"2026-06-20","cycle_status":"in_progress","suggestion":{"operation_id":"weeding_1","status":"upcoming","message":"'weeding_1' is expected in about 9 day(s), around 2026-06-29.","depends_on_operation_id":"planting","depends_on_date":"2026-06-15","earliest_date":"2026-06-29","latest_date":"2026-07-15","days_until_due":9,"days_overdue":null}}

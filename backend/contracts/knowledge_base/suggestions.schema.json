@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "NextStep": {
+      "properties": {
+        "days_overdue": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days Overdue"
+        },
+        "days_until_due": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days Until Due"
+        },
+        "depends_on_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depends On Date"
+        },
+        "depends_on_operation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depends On Operation Id"
+        },
+        "earliest_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Earliest Date"
+        },
+        "latest_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latest Date"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "status",
+        "message"
+      ],
+      "title": "NextStep",
+      "type": "object"
+    }
+  },
+  "description": "What the crop's rules expect to be logged next.",
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "crop_id": {
+      "title": "Crop Id",
+      "type": "string"
+    },
+    "cycle_status": {
+      "title": "Cycle Status",
+      "type": "string"
+    },
+    "suggestion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NextStep"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "crop_id",
+    "as_of",
+    "cycle_status"
+  ],
+  "title": "Suggestions",
+  "type": "object"
+}

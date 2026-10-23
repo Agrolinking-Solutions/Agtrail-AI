@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "CropStep": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "signal_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal Category"
+        },
+        "step_number": {
+          "title": "Step Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step_number",
+        "operation_id",
+        "name"
+      ],
+      "title": "CropStep",
+      "type": "object"
+    }
+  },
+  "description": "A crop's steps in workflow order, each with its shared signal category.",
+  "properties": {
+    "crop_id": {
+      "title": "Crop Id",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/CropStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "crop_id",
+    "steps"
+  ],
+  "title": "CropSteps",
+  "type": "object"
+}
