@@ -32,6 +32,12 @@ os.environ.update({
     "AGTRAIL_OUTBOUND_SECRET": "",
     "API_KEYS": f"tester:{API_KEY}",
     "IMAGE_ALLOW_HTTP": "false",
+    # Storage is off unless a test turns it on, whatever a developer has in their own .env.
+    "S3_ENDPOINT": "",
+    "S3_BUCKET": "",
+    "S3_ACCESS_KEY": "",
+    "S3_SECRET_KEY": "",
+    "GCP_BUCKET_NAME": "",
 })
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
