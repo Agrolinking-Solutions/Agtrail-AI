@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.models.farm import Farm
-from app.models.ndvi import FarmNdviObservation
-from app.services.sentinel import default_window, fetch_farm_ndvi, get_access_token
+from app.models.ndvi import FarmNdviObservation, FarmNdviScene
+from app.services.sentinel import default_window, fetch_farm_ndvi, fetch_farm_scenes, get_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +83,59 @@ def ingest_ndvi(start: date | None = None, end: date | None = None) -> dict:
     return summary
 
 
+def _upsert_scenes(db: Session, farm: Farm, scenes) -> int:
+    for scene in scenes:
+        stmt = insert(FarmNdviScene).values(
+            farm_id=farm.id,
+            scene_date=scene.scene_date,
+            ndvi_mean=scene.ndvi_mean,
+            polygon_pixels=scene.polygon_pixels,
+            clear_fraction=scene.clear_fraction,
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_ndvi_scene_farm_date",
+            set_={
+                "ndvi_mean": stmt.excluded.ndvi_mean,
+                "polygon_pixels": stmt.excluded.polygon_pixels,
+                "clear_fraction": stmt.excluded.clear_fraction,
+            },
+        )
+        db.execute(stmt)
+    return len(scenes)
+
+
+def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
+    """Per-pass NDVI with clouds removed pixel by pixel. Re-running a window
+    refreshes it, so the last pass or two can still be corrected as Copernicus
+    finishes processing them."""
+    if start is None or end is None:
+        start, end = default_window()
+
+    summary = {"farms": 0, "scenes_written": 0, "farms_failed": 0}
+    token = get_access_token()
+
+    with SessionLocal() as db:
+        farms = _mapped_farms(db)
+        summary["farms"] = len(farms)
+        for farm, boundary_geojson in farms:
+            try:
+                scenes = fetch_farm_scenes(boundary_geojson, start, end, token)
+            except Exception as exc:
+                summary["farms_failed"] += 1
+                logger.warning("Scene fetch failed for farm %s: %s", farm.id, exc)
+                continue
+            summary["scenes_written"] += _upsert_scenes(db, farm, scenes)
+        db.commit()
+
+    return summary
+
+
 def main() -> None:
     configure_logging()
     summary = ingest_ndvi()
     logger.info("NDVI ingestion finished: %s", summary)
+    scene_summary = ingest_scenes()
+    logger.info("NDVI scene ingestion finished: %s", scene_summary)
 
 
 if __name__ == "__main__":

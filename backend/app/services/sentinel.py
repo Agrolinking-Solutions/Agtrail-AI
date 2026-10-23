@@ -107,6 +107,42 @@ function evaluatePixel(s) {
 }
 """
 
+# Sentinel-2 scene classification (SCL) classes that must not count as crop:
+# 0 no data, 1 saturated, 3 cloud shadow, 8 and 9 cloud (medium, high
+# probability), 10 thin cirrus. Judged per pixel, because a scene that is 25%
+# cloudy overall can still be completely clear over one small farm, or the
+# reverse.
+CLOUDY_SCL_CLASSES = (0, 1, 3, 8, 9, 10)
+# Roughly 10 m, Sentinel-2's pixel size, in degrees. Without an explicit
+# resolution the API stretches the farm's bounding box onto a fixed 256 x 256
+# grid, which makes every pixel count meaningless.
+SCENE_RESOLUTION_DEG = 0.00009
+SCENE_EPSG4326 = "http://www.opengis.net/def/crs/EPSG/0/4326"
+
+# Two statistics are asked for so one request gives both answers exactly:
+# "clear" (1 or 0 per pixel) averages to the clear fraction of the farm, and
+# "ndvi_clear" (NDVI on clear pixels, 0 elsewhere) divided by that fraction is
+# the mean NDVI over the clear pixels only.
+SCENE_EVALSCRIPT = """
+//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["B04", "B08", "SCL", "dataMask"] }],
+    output: [
+      { id: "ndvi_clear", bands: 1 },
+      { id: "clear", bands: 1 },
+      { id: "dataMask", bands: 1 }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  var cloudy = %s;
+  var clear = cloudy.indexOf(s.SCL) === -1 ? 1 : 0;
+  var ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
+  return { ndvi_clear: [clear ? ndvi : 0], clear: [clear], dataMask: [s.dataMask] };
+}
+""" % list(CLOUDY_SCL_CLASSES)
+
 IMAGE_STYLES = {"ndvi": NDVI_IMAGE_EVALSCRIPT, "true-color": TRUE_COLOR_EVALSCRIPT}
 
 
@@ -116,6 +152,17 @@ class NdviPeriod:
     period_end: date
     ndvi_mean: float
     valid_pixel_count: int
+
+
+@dataclass(frozen=True)
+class NdviScene:
+    """One satellite pass over one farm. ndvi_mean is None when no pixel of
+    the farm was clear that day (the farm was under cloud)."""
+
+    scene_date: date
+    ndvi_mean: float | None
+    polygon_pixels: int
+    clear_fraction: float
 
 
 def get_access_token() -> str:
@@ -188,6 +235,65 @@ def parse_statistics_response(payload: dict) -> list[NdviPeriod]:
             )
         )
     return periods
+
+
+def fetch_farm_scenes(boundary_geojson: dict, start: date, end: date, token: str) -> list[NdviScene]:
+    """Every pass in the window, one entry per day with imagery, with clouds
+    removed pixel by pixel. Passes that were fully cloudy are returned too
+    (ndvi_mean None), so the record shows the farm was looked at and not
+    visible, rather than leaving a silent gap."""
+    time_range = {
+        "from": datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+        "to": datetime.combine(end, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+    }
+    body = {
+        "input": {
+            "bounds": {"geometry": boundary_geojson, "properties": {"crs": SCENE_EPSG4326}},
+            # No image-wide cloud filter: that would drop a pass that is clear over this farm.
+            "data": [{"type": "sentinel-2-l2a", "dataFilter": {"timeRange": time_range}}],
+        },
+        "aggregation": {
+            "timeRange": time_range,
+            "aggregationInterval": {"of": "P1D"},
+            "evalscript": SCENE_EVALSCRIPT,
+            "resx": SCENE_RESOLUTION_DEG,
+            "resy": SCENE_RESOLUTION_DEG,
+        },
+        "calculations": {"default": {}},
+    }
+    response = httpx.post(
+        STATISTICS_URL,
+        content=json.dumps(body),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        timeout=120.0,
+    )
+    response.raise_for_status()
+    return parse_scenes_response(response.json())
+
+
+def parse_scenes_response(payload: dict) -> list[NdviScene]:
+    scenes = []
+    for item in payload.get("data", []):
+        outputs = item["outputs"]
+        clear_stats = outputs["clear"]["bands"]["B0"]["stats"]
+        polygon_pixels = (clear_stats.get("sampleCount") or 0) - (clear_stats.get("noDataCount") or 0)
+        if polygon_pixels <= 0:
+            continue
+        clear_fraction = min(max(float(clear_stats.get("mean") or 0.0), 0.0), 1.0)
+        ndvi_mean = None
+        if clear_fraction > 0:
+            ndvi_sum = outputs["ndvi_clear"]["bands"]["B0"]["stats"].get("mean")
+            if ndvi_sum is not None:
+                ndvi_mean = float(ndvi_sum) / clear_fraction
+        scenes.append(
+            NdviScene(
+                scene_date=datetime.fromisoformat(item["interval"]["from"].replace("Z", "+00:00")).date(),
+                ndvi_mean=ndvi_mean,
+                polygon_pixels=int(polygon_pixels),
+                clear_fraction=clear_fraction,
+            )
+        )
+    return scenes
 
 
 def fetch_farm_image(
