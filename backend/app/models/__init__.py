@@ -11,10 +11,11 @@ from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
 from app.models.operation_signal import OperationSignal
+from app.models.trash import TrashedRecord
 from app.models.aliases import OperationTypeAlias, CropAlias
 
 __all__ = [
-    "CropCycle", "FarmOperation", "OperationSignal", "OperationTypeAlias", "CropAlias",
+    "CropCycle", "FarmOperation", "OperationSignal", "TrashedRecord", "OperationTypeAlias", "CropAlias",
     "Farmer", "Farm", "FarmStatus",
     "Agent",
     "MonitoringCycle", "CycleType", "CycleStatus",

@@ -186,6 +186,25 @@ is only judged when it can be identified for certain.
 The daily `ingest_ndvi` run looks back 20 days for farms that already have
 satellite passes, and 90 days for a farm that has none yet.
 
+## Trash
+
+A farm that should not stay in the live tables (a test record, a duplicate) is moved to the
+trash, not deleted. Everything attached to it (crop cycles, operations, satellite readings,
+rule checks, visits, photos, predictions) is saved whole in `trashed_records`, so it can be
+shown to the team or put back.
+
+```bash
+python -m app.jobs.trash list
+python -m app.jobs.trash farm TEST-FARM-001                       # preview only, nothing moves
+python -m app.jobs.trash farm TEST-FARM-001 --yes --reason "test record"
+python -m app.jobs.trash export <trash id>                        # prints the whole record as JSON
+python -m app.jobs.trash restore <trash id> --yes                 # puts every row back
+```
+
+Nothing happens without `--yes`. The farmer is removed only when it was their only farm.
+The trash lives in the database, not in a folder, because a container's own files are lost
+at every deploy.
+
 ## Deploys and migrations
 
 The production platform redeploys on every merge to `main`. The web container

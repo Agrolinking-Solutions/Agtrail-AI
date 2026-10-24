@@ -82,7 +82,7 @@ def db_session(migrated_db):
     with migrated_db.begin() as conn:
         conn.execute(text(
             "TRUNCATE agtrail_sync_log, predictions, farm_images, farm_visits, "
-            "monitoring_cycles, farms, farmers, agents, jobs CASCADE"
+            "monitoring_cycles, farms, farmers, agents, jobs, trashed_records CASCADE"
         ))
     with SessionLocal() as session:
         yield session
