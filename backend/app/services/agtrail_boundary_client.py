@@ -80,6 +80,12 @@ def get_farm_boundaries_batch(farm_ids: list[str]) -> tuple[list[dict], list[str
     Returns (items, missing_ids). Each item in items follows the same
     shape as get_farm_boundary's return value, including farms that
     exist but are not mapped yet.
+
+    AgTrail rejects a whole batch when it holds a single id it cannot read
+    (for example a test record such as "TEST-FARM-001"). A rejected batch is
+    therefore split in half and tried again, down to the one bad id, so the
+    other farms in it still get their boundaries and only the bad id is
+    reported as missing.
     """
     if not farm_ids:
         return [], []
@@ -89,6 +95,13 @@ def get_farm_boundaries_batch(farm_ids: list[str]) -> tuple[list[dict], list[str
             f"Batch size {len(farm_ids)} exceeds the cap of {BATCH_SIZE_LIMIT}, split into smaller batches first."
         )
 
+    items: list[dict] = []
+    missing: list[str] = []
+    _fetch_batch(farm_ids, items, missing)
+    return items, missing
+
+
+def _fetch_batch(farm_ids: list[str], items: list[dict], missing: list[str]) -> None:
     # Signed over the exact bytes on the wire, compact separators,
     # matching Victor's own example exactly, a pretty printed or
     # differently spaced JSON body will fail the signature check.
@@ -110,16 +123,26 @@ def get_farm_boundaries_batch(farm_ids: list[str]) -> tuple[list[dict], list[str
         )
     except httpx.HTTPError as exc:
         logger.warning("Network error fetching boundary batch: %s", exc)
-        return [], farm_ids
+        missing.extend(farm_ids)
+        return
 
     if response.status_code == 400:
-        logger.warning("Batch request rejected: %s", response.text[:500])
-        return [], farm_ids
+        if len(farm_ids) == 1:
+            logger.warning("AgTrail rejected farm id %r: %s", farm_ids[0], response.text[:300])
+            missing.extend(farm_ids)
+            return
+        logger.warning(
+            "Batch of %d rejected (%s), splitting it to find the bad id.", len(farm_ids), response.text[:200]
+        )
+        middle = len(farm_ids) // 2
+        _fetch_batch(farm_ids[:middle], items, missing)
+        _fetch_batch(farm_ids[middle:], items, missing)
+        return
 
     response.raise_for_status()
-    body = response.json()
-    data = body.get("data", {})
-    return data.get("items", []), data.get("missingIds", [])
+    data = response.json().get("data", {})
+    items.extend(data.get("items", []))
+    missing.extend(data.get("missingIds", []))
 
 
 def geojson_polygon_to_wkt(geometry: dict) -> WKTElement:
