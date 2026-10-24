@@ -17,6 +17,8 @@ class ImageStatus(str, enum.Enum):
     pending = "pending"
     processed = "processed"
     failed = "failed"
+    # The operation was logged without a photo: AgTrail sent a stand-in link.
+    no_photo = "no_photo"
 
 
 class FarmImage(Base):
