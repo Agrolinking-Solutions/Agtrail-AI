@@ -94,3 +94,42 @@ def test_scene_upsert_is_idempotent_and_a_later_run_corrects_a_day(db_session):
         (date(2026, 9, 15), 0.6, 1.0),
         (date(2026, 9, 17), None, 0.0),
     ]
+
+
+@requires_db
+def test_a_run_that_is_cut_off_keeps_the_farms_it_already_fetched(db_session, monkeypatch):
+    import pytest
+    from geoalchemy2 import WKTElement
+
+    import app.jobs.ingest_ndvi as job
+    from app.models.farm import Farm
+    from app.models.farmer import Farmer
+    from app.models.ndvi import FarmNdviScene
+    from app.services.sentinel import NdviScene
+
+    farmer = Farmer(full_name="Test Farmer", phone="08000077", state="Oyo", lga="Ibadan North")
+    db_session.add(farmer)
+    db_session.flush()
+    square = WKTElement("POLYGON((7.9 4.7, 7.9005 4.7, 7.9005 4.7005, 7.9 4.7005, 7.9 4.7))", srid=4326)
+    farms = [Farm(farmer_id=farmer.id, name=f"F{i}", agtrail_farm_id=f"AGT-CUT-{i}", boundary_mapped=True, boundary=square) for i in range(3)]
+    db_session.add_all(farms)
+    db_session.commit()
+
+    calls = []
+
+    def fetch(boundary, start, end, token):
+        calls.append(1)
+        if len(calls) == 3:
+            raise KeyboardInterrupt  # the task timed out or was stopped
+        return [NdviScene(date(2026, 10, 20), 0.5, 10, 1.0)]
+
+    monkeypatch.setattr(job, "get_access_token", lambda: "token")
+    monkeypatch.setattr(job, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(job, "fetch_farm_scenes", fetch)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+
+    with pytest.raises(KeyboardInterrupt):
+        job.ingest_scenes()
+    db_session.rollback()  # what happens to anything not yet committed when the process dies
+
+    assert db_session.query(FarmNdviScene).count() == 2

@@ -20,6 +20,14 @@ logger = logging.getLogger(__name__)
 LARGE_FARM_HECTARES = 100
 
 
+PROGRESS_EVERY = 25
+
+
+def _progress(what: str, done: int, total: int) -> None:
+    if done % PROGRESS_EVERY == 0 or done == total:
+        logger.info("%s: %d of %d farms done.", what, done, total)
+
+
 def _mapped_farms(db: Session) -> list[tuple[Farm, dict]]:
     rows = db.execute(
         select(Farm, func.ST_AsGeoJSON(Farm.boundary))
@@ -59,7 +67,7 @@ def ingest_ndvi(start: date | None = None, end: date | None = None) -> dict:
     with SessionLocal() as db:
         farms = _mapped_farms(db)
         summary["farms"] = len(farms)
-        for farm, boundary_geojson in farms:
+        for index, (farm, boundary_geojson) in enumerate(farms, start=1):
             if farm.area_hectares and farm.area_hectares > LARGE_FARM_HECTARES:
                 logger.warning(
                     "Farm %s (agtrail_farm_id %s) is %.1f ha, above the %d ha smallholder "
@@ -78,7 +86,9 @@ def ingest_ndvi(start: date | None = None, end: date | None = None) -> dict:
                     farm.id, farm.agtrail_farm_id, farm.area_hectares,
                 )
             summary["periods_written"] += _upsert_periods(db, farm, periods)
-        db.commit()
+            # Saved farm by farm: a run that is cut off keeps what it already fetched.
+            db.commit()
+            _progress("10-day NDVI", index, len(farms))
 
     return summary
 
@@ -126,7 +136,7 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
         farms = _mapped_farms(db)
         summary["farms"] = len(farms)
         have_history = set(db.execute(select(FarmNdviScene.farm_id).distinct()).scalars().all())
-        for farm, boundary_geojson in farms:
+        for index, (farm, boundary_geojson) in enumerate(farms, start=1):
             if not explicit:
                 days = RECENT_DAYS if farm.id in have_history else FIRST_RUN_DAYS
                 start = end - timedelta(days=days)
@@ -137,17 +147,21 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
                 logger.warning("Scene fetch failed for farm %s: %s", farm.id, exc)
                 continue
             summary["scenes_written"] += _upsert_scenes(db, farm, scenes)
-        db.commit()
+            # Saved farm by farm: with hundreds of farms a run takes a long time, and
+            # one that is cut off must keep what it already fetched.
+            db.commit()
+            _progress("Scenes", index, len(farms))
 
     return summary
 
 
 def main() -> None:
     configure_logging()
-    summary = ingest_ndvi()
-    logger.info("NDVI ingestion finished: %s", summary)
+    # The per-pass data first: crop health and the farm summary read it.
     scene_summary = ingest_scenes()
     logger.info("NDVI scene ingestion finished: %s", scene_summary)
+    summary = ingest_ndvi()
+    logger.info("NDVI ingestion finished: %s", summary)
 
 
 if __name__ == "__main__":
