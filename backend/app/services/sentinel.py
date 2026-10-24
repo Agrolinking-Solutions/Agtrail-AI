@@ -8,6 +8,7 @@ only 10 to 30 Sentinel-2 pixels), so a per-farm mean is what we actually need.
 
 import json
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
 from dataclasses import dataclass
 
@@ -165,6 +166,42 @@ class NdviScene:
     clear_fraction: float
 
 
+# Copernicus limits how fast one client may ask, and answers 429 when it is asked too fast.
+# That, a server error or a dropped connection is waited out and tried again; anything else
+# (a bad request, a missing farm) is a real answer and is raised at once.
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+MAX_ATTEMPTS = 5
+MAX_WAIT_SECONDS = 60.0
+_sleep = time.sleep
+
+
+def _wait_seconds(response: httpx.Response | None, attempt: int) -> float:
+    """Copernicus's own Retry-After when it sends one, otherwise 2, 4, 8, 16 seconds."""
+    if response is not None:
+        try:
+            return min(float(response.headers.get("Retry-After", "")), MAX_WAIT_SECONDS)
+        except ValueError:
+            pass
+    return min(2.0 * (2 ** (attempt - 1)), MAX_WAIT_SECONDS)
+
+
+def _post_with_retries(url: str, *, max_attempts: int = MAX_ATTEMPTS, **kwargs) -> httpx.Response:
+    for attempt in range(1, max_attempts + 1):
+        response = None
+        try:
+            response = httpx.post(url, **kwargs)
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            if attempt == max_attempts:
+                raise
+            logger.warning("Copernicus request failed (%s), attempt %d of %d.", type(exc).__name__, attempt, max_attempts)
+        else:
+            if response.status_code not in RETRY_STATUSES or attempt == max_attempts:
+                return response
+            logger.warning("Copernicus answered %d, attempt %d of %d.", response.status_code, attempt, max_attempts)
+        _sleep(_wait_seconds(response, attempt))
+    raise AssertionError("unreachable")
+
+
 def get_access_token() -> str:
     response = httpx.post(
         TOKEN_URL,
@@ -207,7 +244,7 @@ def fetch_farm_ndvi(
         "calculations": {"ndvi": {}},
     }
 
-    response = httpx.post(
+    response = _post_with_retries(
         STATISTICS_URL,
         content=json.dumps(body),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
@@ -261,7 +298,7 @@ def fetch_farm_scenes(boundary_geojson: dict, start: date, end: date, token: str
         },
         "calculations": {"default": {}},
     }
-    response = httpx.post(
+    response = _post_with_retries(
         STATISTICS_URL,
         content=json.dumps(body),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
@@ -324,8 +361,9 @@ def fetch_farm_image(
         "evalscript": evalscript,
     }
 
-    response = httpx.post(
+    response = _post_with_retries(
         PROCESS_URL,
+        max_attempts=2,  # a person is waiting for the picture
         content=json.dumps(body),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "image/png"},
         timeout=120.0,
