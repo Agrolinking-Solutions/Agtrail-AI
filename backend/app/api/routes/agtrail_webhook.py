@@ -87,6 +87,7 @@ def _get_or_create_farm(db: Session, farm_data, farmer: Farmer, commodity: str |
             area_hectares=farm_data.hectares,
             coordinates=_point(farm_data.latitude, farm_data.longitude),
             commodity=commodity,
+            soil_type=farm_data.soil_type,
             agtrail_farm_id=farm_data.agtrail_farm_id,
         )
         db.add(farm)
@@ -98,6 +99,9 @@ def _get_or_create_farm(db: Session, farm_data, farmer: Farmer, commodity: str |
         farm.commodity = commodity
     if farm.coordinates is None:
         farm.coordinates = _point(farm_data.latitude, farm_data.longitude)
+    # Soil can arrive later than the farm, or be corrected; a message without it never clears it.
+    if farm_data.soil_type:
+        farm.soil_type = farm_data.soil_type
 
     return farm
 
