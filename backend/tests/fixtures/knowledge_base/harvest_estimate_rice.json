@@ -1,0 +1,44 @@
+{
+  "as_of": "2026-10-25",
+  "available": true,
+  "caveats": [
+    "National averages hide the spread between farms, so a single farm can be well outside the typical figure.",
+    "FAO's national figures for Nigeria are compiled from national reports and FAO estimates and move little from year to year.",
+    "Not a prediction for this farm: it does not know this season's rain, soil, seed or care."
+  ],
+  "confidence": 0.6,
+  "crop_id": "rice",
+  "harvest_window": {
+    "after": "transplanting",
+    "max_days": 119,
+    "min_days": 79
+  },
+  "method": "Typical is the FAO national average for Nigeria in 2024. The normal range is the standard range the crop's yield checks already use (the CEO's ruleset; for soybean, the IITA-based range). The harvest window is the expected window in the crop's timing rules. The range is what is normal for a farm, not a forecast for this one.",
+  "per": "season",
+  "sources": [
+    {
+      "figure": "2.0 t/ha in 2024; 1.86 to 2.0 t/ha across 2020 to 2024",
+      "opened": "2026-10-25",
+      "publisher": "FAO, processed by Our World in Data",
+      "title": "FAOSTAT, Production: Crops and livestock products, Nigeria national yield 1961 to 2024 (via Our World in Data)",
+      "url": "https://ourworldindata.org/grapher/rice-yields",
+      "year": 2024
+    },
+    {
+      "figure": "standard range 1.0 to 6.0 t/ha",
+      "opened": "2026-10-25",
+      "publisher": "Agrolinking Solutions Ltd. (CEO, acting as agronomist)",
+      "title": "AgTrail Master Agronomist & Validator Ruleset, section 2 (Rice), yield validation",
+      "url": null,
+      "year": 2026
+    }
+  ],
+  "yield_basis": "paddy (unmilled)",
+  "yield_t_per_ha": {
+    "national_recent_high": 2.0,
+    "national_recent_low": 1.86,
+    "normal_high": 6.0,
+    "normal_low": 1.0,
+    "typical": 2.0
+  }
+}

@@ -20,6 +20,7 @@ from app.clients.resilience import CircuitBreaker
 from app.contracts.knowledge_base import (
     CommodityMapping,
     CropSteps,
+    HarvestEstimateBasis,
     KnowledgeBaseVersion,
     RegionMapping,
     Suggestions,
@@ -59,6 +60,9 @@ class KnowledgeBaseClient:
 
     def crop_steps(self, crop_id: str) -> ClientResult[CropSteps]:
         return self._service.fetch(f"/v1/crops/{crop_id}/steps", CropSteps, REFERENCE_TTL_SECONDS)
+
+    def harvest_estimate(self, crop_id: str) -> ClientResult[HarvestEstimateBasis]:
+        return self._service.fetch(f"/v1/crops/{crop_id}/harvest-estimate", HarvestEstimateBasis, REFERENCE_TTL_SECONDS)
 
     def validate(
         self,

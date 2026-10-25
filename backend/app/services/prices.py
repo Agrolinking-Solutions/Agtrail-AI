@@ -46,6 +46,8 @@ class CropPrice:
     note: Optional[str] = None
     # The KB's own words about the mapping (units, conversion).
     mapping_note: Optional[str] = None
+    # Multiply a yield in tonnes by this and by the price to get a value. None when it has not been sourced.
+    conversion_factor: Optional[float] = None
 
 
 def _date(value: Optional[str]) -> Optional[date]:
@@ -95,4 +97,5 @@ def crop_price(crop_id: str, kb: KnowledgeBase, pis: Pis, today: Optional[date] 
         last_real_price_age_days=(today - real_date).days if real_date else None,
         note=note if value.unit_label.lower().endswith("/kg") else f"PIS quotes this in {value.unit_label}, not per kilogram.",
         mapping_note=row.conversion_note,
+        conversion_factor=row.conversion_factor,
     )

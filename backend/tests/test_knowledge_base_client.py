@@ -322,6 +322,20 @@ def test_a_crops_steps_are_read_and_cached_like_the_other_reference_data():
     assert len(server.requests) == 1 and server.requests[0].url.path == "/v1/crops/sorghum/steps"
 
 
+def test_a_harvest_estimate_is_read_cached_and_a_crop_without_research_says_so():
+    from app.contracts.knowledge_base import HarvestEstimateBasis
+
+    server = Server(ok("harvest_estimate_maize"))
+    client, _ = make(server)
+    first = client.harvest_estimate("maize")
+    client.harvest_estimate("maize")
+
+    assert first.ok and first.value.available and first.value.yield_t_per_ha.typical == 2.03 and len(server.requests) == 1
+    assert server.requests[0].url.path == "/v1/crops/maize/harvest-estimate"
+    none = HarvestEstimateBasis.model_validate(fixture("harvest_estimate_yam"))
+    assert none.available is False and none.yield_t_per_ha is None and none.reason
+
+
 def test_validate_sends_the_history_and_operation_and_parses_the_verdict():
     server = Server(ok("validate_blocked"))
     client, _ = make(server)

@@ -31,6 +31,14 @@ class FakeKb:
     def __init__(self, down=False):
         self.down = down
 
+    def harvest_estimate(self, crop_id):
+        from app.contracts.knowledge_base import HarvestEstimateBasis
+
+        path = Path(__file__).parent / "fixtures" / "knowledge_base" / f"harvest_estimate_{crop_id}.json"
+        if self.down or not path.exists():
+            return ClientResult(value=HarvestEstimateBasis(crop_id=crop_id, available=False, reason="No current research is recorded for this crop yet."))
+        return ClientResult(value=HarvestEstimateBasis.model_validate(json.loads(path.read_text())))
+
     def taxonomy(self):
         return ClientResult(unavailable_reason="not needed here") if self.down else ClientResult(value=Taxonomy.model_validate(json.loads((Path(__file__).parent / "fixtures" / "knowledge_base" / "taxonomy.json").read_text())))
 

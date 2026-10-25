@@ -15,6 +15,7 @@ from app.models.farm_operation import FarmOperation
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
 from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
+from app.schemas.harvest import FarmHarvestEstimateOut
 from app.schemas.intelligence import FarmIntelligenceOut
 from app.schemas.ndvi import CropHealthOut, NdviObservationOut
 from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
@@ -24,6 +25,7 @@ from app.clients.pis import get_pis_client
 from app.models.farmer import Farmer
 from app.services import crop_health
 from app.services.farm_intelligence import build_intelligence
+from app.services.harvest_estimate import build_estimate
 from app.services.phases import phase_of
 from app.services.signal_engine import classify_issue
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
@@ -254,10 +256,53 @@ def get_farm_intelligence(
         .where(OperationSignal.farm_id == farm.id)
     ).all()
     taxonomy_result = kb.taxonomy()
+    newest = max((c for c in cycles if c.crop_id), key=lambda c: c.planted_date, default=None)
     return build_intelligence(
         farm.id, farmer.state if farmer else None, cycles, scenes, [tuple(row) for row in signal_rows], kb, prices,
         taxonomy=taxonomy_result.value if taxonomy_result.ok else None,
+        area_ha=farm.area_hectares, transplanted_on=_transplanted_on(db, newest) if newest else None,
     )
+
+
+def _transplanted_on(db: Session, cycle: CropCycle):
+    return db.execute(
+        select(func.min(FarmOperation.operation_date)).where(
+            FarmOperation.crop_cycle_id == cycle.id, FarmOperation.kb_operation_id == "transplanting"
+        )
+    ).scalar()
+
+
+@router.get("/{farm_id}/harvest-estimate", response_model=FarmHarvestEstimateOut)
+def get_harvest_estimate(
+    farm_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    kb=Depends(knowledge_base),
+    prices=Depends(pis),
+):
+    """
+    An estimate, as a range, of how much the farm's newest crop will give, when, and what it is
+    worth. Always labelled an estimate: it is the typical result for the crop on a farm this size,
+    from cited current research, not a forecast for this farm. Anything that cannot be worked out
+    (no crop, no farm size, no research for the crop, no price) is left out with the reason.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+    cycle = db.execute(
+        select(CropCycle).where(CropCycle.farm_id == farm.id, CropCycle.crop_id.is_not(None)).order_by(CropCycle.planted_date.desc()).limit(1)
+    ).scalar_one_or_none()
+    if cycle is None:
+        any_cycle = db.execute(select(CropCycle).where(CropCycle.farm_id == farm.id).order_by(CropCycle.planted_date.desc()).limit(1)).scalar_one_or_none()
+        code = "no_crop" if any_cycle else "no_cycle"
+        reason = "The crop is not one the Knowledge Base has rules for yet." if any_cycle else "No crop is recorded for this farm."
+        return FarmHarvestEstimateOut(farm_id=str(farm.id), status="no_estimate", reason_code=code, reason=reason, crop=any_cycle.crop_raw if any_cycle else None)
+
+    estimate = build_estimate(
+        crop_id=cycle.crop_id, crop_name=(cycle.crop_raw or "").strip(), area_ha=farm.area_hectares,
+        planted_on=cycle.planted_date, transplanted_on=_transplanted_on(db, cycle), kb=kb, pis=prices,
+    )
+    return FarmHarvestEstimateOut(farm_id=str(farm.id), **estimate.model_dump())
 
 
 @router.get("/{farm_id}/ndvi-image")
