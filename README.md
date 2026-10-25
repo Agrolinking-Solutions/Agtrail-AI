@@ -212,6 +212,21 @@ Nothing happens without `--yes`. The farmer is removed only when it was their on
 The trash lives in the database, not in a folder, because a container's own files are lost
 at every deploy.
 
+## Harvest estimate
+
+`GET /farms/{id}/harvest-estimate` (and `harvest_estimate` in `/intelligence`) gives, for the farm's
+newest crop with rules, how much it will give as a range (the farm's size times the crop's typical and
+normal yield per hectare), when (planting or transplanting date plus the expected harvest window) and what
+it is worth (tonnes times the price, only when the price is known and the unit conversion is sourced).
+Always labelled an estimate: the typical result for the crop on a farm this size, not a forecast for this
+farm. Anything that cannot be worked out is left out with a `reason_code` (`no_cycle`, `no_crop`,
+`no_research`, `no_area`, `estimate_unavailable`).
+
+The crop numbers and their sources (FAO national averages for Nigeria, 2024; the CEO's ruleset; IITA for
+soybean) come from the Knowledge Base, `/v1/crops/{id}/harvest-estimate`, with the date they were
+researched. Seven crops have one: maize, rice, cassava, soybean, cocoa, groundnut, sorghum. Rice and cassava
+get no naira value (no milling factor, no price series).
+
 ## Deploys and migrations
 
 The production platform redeploys on every merge to `main`. The web container

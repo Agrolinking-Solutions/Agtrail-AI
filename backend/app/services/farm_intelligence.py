@@ -28,6 +28,7 @@ from app.schemas.intelligence import (
     WeatherDayOut,
 )
 from app.services import crop_health
+from app.services.harvest_estimate import build_estimate
 from app.services.phases import phase_of
 from app.services.prices import crop_price
 from app.services.signal_engine import classify_issue
@@ -128,6 +129,16 @@ def _prices(cycles: list[CropCycle], kb, pis, today: date) -> list[PriceBlock]:
     return blocks
 
 
+def _harvest_estimate(cycles, area_ha, transplanted_on, kb, pis, today):
+    cycle = max((c for c in cycles if c.crop_id), key=lambda c: c.planted_date, default=None)
+    if cycle is None:
+        return None
+    return build_estimate(
+        crop_id=cycle.crop_id, crop_name=(cycle.crop_raw or "").strip(), area_ha=area_ha, planted_on=cycle.planted_date,
+        transplanted_on=transplanted_on, kb=kb, pis=pis, today=today,
+    )
+
+
 def _weather(state: Optional[str], pis) -> WeatherBlock:
     result = pis.weather()
     if not result.ok:
@@ -157,6 +168,8 @@ def build_intelligence(
     pis,
     today: Optional[date] = None,
     taxonomy=None,
+    area_ha: Optional[float] = None,
+    transplanted_on: Optional[date] = None,
 ) -> FarmIntelligenceOut:
     now = datetime.now(timezone.utc)
     today = today or now.date()
@@ -168,5 +181,6 @@ def build_intelligence(
         crop_health=_crop_health(scenes, today),
         signals=_signals(signal_rows, taxonomy),
         prices=_prices(cycles, kb, pis, today),
+        harvest_estimate=_harvest_estimate(cycles, area_ha, transplanted_on, kb, pis, today),
         weather=_weather(state, pis),
     )

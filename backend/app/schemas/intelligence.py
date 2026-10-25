@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.schemas.harvest import HarvestEstimateOut
 from app.schemas.ndvi import ClearReadingOut
 
 
@@ -111,4 +112,6 @@ class FarmIntelligenceOut(BaseModel):
     crop_health: CropHealthBlock
     signals: SignalsBlock
     prices: list[PriceBlock]
+    # For the newest crop with rules: how much, when and what it is worth, as an estimate.
+    harvest_estimate: HarvestEstimateOut | None = None
     weather: WeatherBlock

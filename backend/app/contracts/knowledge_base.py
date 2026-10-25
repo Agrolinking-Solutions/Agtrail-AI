@@ -140,6 +140,47 @@ class CropSteps(_Contract):
         return [step for step in self.steps if step.signal_category == signal_category]
 
 
+class EstimateSource(_Contract):
+    title: str
+    publisher: Optional[str] = None
+    url: Optional[str] = None
+    figure: str
+    year: int
+    opened: Optional[str] = None
+
+
+class YieldPerHectare(_Contract):
+    typical: float
+    normal_low: float
+    normal_high: float
+    national_recent_low: Optional[float] = None
+    national_recent_high: Optional[float] = None
+
+
+class HarvestWindow(_Contract):
+    after: str  # planting | transplanting
+    min_days: int
+    max_days: int
+
+
+class HarvestEstimateBasis(_Contract):
+    """What a farm of this crop typically harvests per hectare, with sources. When available is
+    false the crop has no current research behind it yet and nothing else is present."""
+
+    crop_id: str
+    available: bool
+    reason: Optional[str] = None
+    as_of: Optional[str] = None
+    per: Optional[str] = None  # season | year
+    yield_basis: Optional[str] = None
+    yield_t_per_ha: Optional[YieldPerHectare] = None
+    harvest_window: Optional[HarvestWindow] = None
+    confidence: Optional[float] = None
+    method: Optional[str] = None
+    caveats: list[str] = Field(default_factory=list)
+    sources: list[EstimateSource] = Field(default_factory=list)
+
+
 class RuleIssue(_Contract):
     rule_id: str
     severity: str
@@ -182,6 +223,7 @@ class Suggestions(_Contract):
 # Used by the schema export and its test.
 CONTRACT_MODELS = {
     "crop_steps": CropSteps,
+    "harvest_estimate": HarvestEstimateBasis,
     "validation": ValidationReport,
     "suggestions": Suggestions,
     "taxonomy": Taxonomy,

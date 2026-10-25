@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "EstimateSource": {
+      "properties": {
+        "figure": {
+          "title": "Figure",
+          "type": "string"
+        },
+        "opened": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opened"
+        },
+        "publisher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publisher"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "year": {
+          "title": "Year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "title",
+        "figure",
+        "year"
+      ],
+      "title": "EstimateSource",
+      "type": "object"
+    },
+    "HarvestWindow": {
+      "properties": {
+        "after": {
+          "title": "After",
+          "type": "string"
+        },
+        "max_days": {
+          "title": "Max Days",
+          "type": "integer"
+        },
+        "min_days": {
+          "title": "Min Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "after",
+        "min_days",
+        "max_days"
+      ],
+      "title": "HarvestWindow",
+      "type": "object"
+    },
+    "YieldPerHectare": {
+      "properties": {
+        "national_recent_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "National Recent High"
+        },
+        "national_recent_low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "National Recent Low"
+        },
+        "normal_high": {
+          "title": "Normal High",
+          "type": "number"
+        },
+        "normal_low": {
+          "title": "Normal Low",
+          "type": "number"
+        },
+        "typical": {
+          "title": "Typical",
+          "type": "number"
+        }
+      },
+      "required": [
+        "typical",
+        "normal_low",
+        "normal_high"
+      ],
+      "title": "YieldPerHectare",
+      "type": "object"
+    }
+  },
+  "description": "What a farm of this crop typically harvests per hectare, with sources. When available is\nfalse the crop has no current research behind it yet and nothing else is present.",
+  "properties": {
+    "as_of": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "As Of"
+    },
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    },
+    "caveats": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Caveats",
+      "type": "array"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "crop_id": {
+      "title": "Crop Id",
+      "type": "string"
+    },
+    "harvest_window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HarvestWindow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "method": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Method"
+    },
+    "per": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Per"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/EstimateSource"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "yield_basis": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Yield Basis"
+    },
+    "yield_t_per_ha": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/YieldPerHectare"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "crop_id",
+    "available"
+  ],
+  "title": "HarvestEstimateBasis",
+  "type": "object"
+}
