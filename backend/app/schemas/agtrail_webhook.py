@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 # Length limits match the database columns, so an over-long value is a
 # 422 here rather than a database error (and endless retries) later.
@@ -11,6 +11,10 @@ Longitude = Annotated[float, Field(ge=-180, le=180)]
 
 
 class WebhookFarm(BaseModel):
+    # Fields we do not read yet are kept (and so end up in the stored copy of the event), so we can
+    # see what AgTrail really sends instead of guessing.
+    model_config = ConfigDict(extra="allow")
+
     agtrail_farm_id: AgtrailId
     name: str = Field(max_length=200)
     state: str = Field(max_length=100)
@@ -18,6 +22,19 @@ class WebhookFarm(BaseModel):
     hectares: float = Field(ge=0)
     latitude: Latitude
     longitude: Longitude
+    # The soil the farm is on, as the farmer or agent picked it ("loamy", "sandy"...). Optional, and
+    # never a reason to reject an event: anything unusable becomes None.
+    soil_type: str | None = Field(
+        default=None, validation_alias=AliasChoices("soil_type", "soilType", "soiltype", "soil")
+    )
+
+    @field_validator("soil_type", mode="before")
+    @classmethod
+    def _soil_type_text(cls, value):
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            text = str(value).strip()
+            return text[:100] or None
+        return None
 
 
 class WebhookFarmer(BaseModel):

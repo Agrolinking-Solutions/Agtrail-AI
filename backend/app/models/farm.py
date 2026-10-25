@@ -34,6 +34,8 @@ class Farm(Base):
     boundary_mapped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     boundary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     commodity: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # The soil as AgTrail recorded it, in the farmer's own words. Not interpreted here.
+    soil_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[FarmStatus] = mapped_column(
         Enum(FarmStatus), default=FarmStatus.active, nullable=False
     )

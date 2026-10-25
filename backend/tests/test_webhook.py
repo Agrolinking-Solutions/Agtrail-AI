@@ -191,3 +191,62 @@ def test_monitoring_image_queues_archive_when_bucket_configured(client, db_sessi
     assert response.status_code == 200, response.text
     image = db_session.execute(select(FarmImage)).scalar_one()
     assert queued_image_ids(db_session, job_type="archive_image") == [str(image.id)]
+
+
+def _with_soil(payload, **fields):
+    payload = copy.deepcopy(payload)
+    payload["farm"].update(fields)
+    return payload
+
+
+@pytest.mark.parametrize("key", ["soil_type", "soilType", "soiltype"])
+def test_farm_soil_type_is_stored(client, db_session, key):
+    from app.models import Farm
+
+    response = post_event(client, _with_soil(load_payload("test_payload_farm_created.json"), **{key: " Sandy loam "}))
+
+    assert response.status_code == 200, response.text
+    assert db_session.execute(select(Farm)).scalar_one().soil_type == "Sandy loam"
+
+
+def test_farm_without_soil_type_is_still_accepted(client, db_session):
+    from app.models import Farm
+
+    response = post_event(client, load_payload("test_payload_farm_created.json"))
+
+    assert response.status_code == 200, response.text
+    assert db_session.execute(select(Farm)).scalar_one().soil_type is None
+
+
+@pytest.mark.parametrize("odd", [{"name": "loamy"}, ["loamy"], True, "", None])
+def test_unusable_soil_type_never_rejects_the_event(client, db_session, odd):
+    from app.models import Farm
+
+    response = post_event(client, _with_soil(load_payload("test_payload_farm_created.json"), soil_type=odd))
+
+    assert response.status_code == 200, response.text
+    assert db_session.execute(select(Farm)).scalar_one().soil_type is None
+
+
+def test_soil_type_added_later_and_not_cleared_by_a_message_without_it(client, db_session):
+    from app.models import Farm
+
+    base = load_payload("test_payload_farm_created.json")
+    post_event(client, base)
+    later = _with_soil(base, soil_type="Clay")
+    later["event_id"] = "evt-soil-later"
+    post_event(client, later)
+    again = copy.deepcopy(base)
+    again["event_id"] = "evt-no-soil"
+    post_event(client, again)
+
+    db_session.expire_all()
+    assert db_session.execute(select(Farm)).scalar_one().soil_type == "Clay"
+
+
+def test_unread_farm_fields_are_kept_in_the_stored_event(client, db_session):
+    from app.models import AgtrailSyncLog
+
+    post_event(client, _with_soil(load_payload("test_payload_farm_created.json"), soil_texture="loamy"))
+
+    assert db_session.execute(select(AgtrailSyncLog)).scalar_one().payload["farm"]["soil_texture"] == "loamy"
