@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from app.clients.base import ClientResult
-from app.contracts.knowledge_base import CommodityMapping, CommodityRow
+from app.contracts.knowledge_base import CommodityMapping, CommodityRow, Taxonomy
 from app.contracts.pis import CommodityForecast, Outlook30d, WeatherToday
 from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
@@ -30,6 +30,9 @@ def pis_fixture(name):
 class FakeKb:
     def __init__(self, down=False):
         self.down = down
+
+    def taxonomy(self):
+        return ClientResult(unavailable_reason="not needed here") if self.down else ClientResult(value=Taxonomy.model_validate(json.loads((Path(__file__).parent / "fixtures" / "knowledge_base" / "taxonomy.json").read_text())))
 
     def commodities(self):
         if self.down:

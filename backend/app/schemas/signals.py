@@ -26,6 +26,9 @@ class OperationSignalOut(BaseModel):
     logged_type: str
     # The Knowledge Base step this was identified as, when it could be told for certain.
     kb_operation_id: str | None
+    # pre_planting | planting | post_planting | harvest | post_harvest, or None when it has no phase.
+    phase: str | None = None
+    phase_name: str | None = None
     # ok | warning | flagged | not_applicable | unknown
     status: str
     reason: str | None
@@ -39,6 +42,10 @@ class FarmSignalsOut(BaseModel):
     provenance: str = "inferred"
     kb_version: str | None
     counts: dict[str, int]
+    # False when the Knowledge Base could not be reached, so no phase could be looked up.
+    phases_available: bool = True
+    # How many operations are in each phase ("none" for those with no phase).
+    phase_counts: dict[str, int] = {}
     # How many issues of each kind, across all signals.
     issue_kinds: dict[str, int]
     signals: list[OperationSignalOut]
