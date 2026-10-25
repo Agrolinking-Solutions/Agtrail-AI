@@ -38,12 +38,24 @@ class AttentionItem(BaseModel):
     summary: str
 
 
+class PhaseSummary(BaseModel):
+    phase: str
+    name: str
+    operations: int
+    flagged: int
+    warnings: int
+    # Not judged: the step could not be identified, or the crop has no such step.
+    unknown: int
+
+
 class SignalsBlock(BaseModel):
     # Worked out from what was logged and the crop rules, not seen on the farm.
     provenance: str = "inferred"
     kb_version: str | None
     # ok | warning | flagged | not_applicable | unknown, how many operations of each
     counts: dict[str, int]
+    # The same operations grouped by phase, in order. Empty when the phases could not be looked up.
+    by_phase: list[PhaseSummary] = []
     # Jobs that were not logged. A gap in the records, not necessarily a mistake.
     record_gaps: int
     # Real problems with what was done (too early or late, wrong order, too often), newest first.

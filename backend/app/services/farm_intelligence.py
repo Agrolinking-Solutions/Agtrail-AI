@@ -21,12 +21,14 @@ from app.schemas.intelligence import (
     CropHealthBlock,
     CropOut,
     FarmIntelligenceOut,
+    PhaseSummary,
     PriceBlock,
     SignalsBlock,
     WeatherBlock,
     WeatherDayOut,
 )
 from app.services import crop_health
+from app.services.phases import phase_of
 from app.services.prices import crop_price
 from app.services.signal_engine import classify_issue
 
@@ -57,7 +59,26 @@ def _crop_health(scenes: list[FarmNdviScene], today: date) -> CropHealthBlock:
     )
 
 
-def _signals(rows: list[tuple[OperationSignal, FarmOperation, CropCycle]]) -> SignalsBlock:
+def _by_phase(rows, taxonomy) -> list[PhaseSummary]:
+    if taxonomy is None or not taxonomy.phases:
+        return []
+    tally = {p.id: {"operations": 0, "flagged": 0, "warnings": 0, "unknown": 0} for p in taxonomy.phases}
+    for signal, operation, cycle in rows:
+        phase = phase_of(taxonomy, signal_category=operation.signal_category, kb_operation_id=signal.kb_operation_id,
+                         logged_type=operation.logged_type_raw, crop_id=cycle.crop_id)
+        if phase not in tally:
+            continue
+        tally[phase]["operations"] += 1
+        if signal.status == "blocked":
+            tally[phase]["flagged"] += 1
+        elif signal.status == "warning":
+            tally[phase]["warnings"] += 1
+        elif signal.status == "unknown":
+            tally[phase]["unknown"] += 1
+    return [PhaseSummary(phase=p.id, name=p.name, **tally[p.id]) for p in taxonomy.phases]
+
+
+def _signals(rows: list[tuple[OperationSignal, FarmOperation, CropCycle]], taxonomy=None) -> SignalsBlock:
     counts: dict[str, int] = {}
     gaps = 0
     attention: list[AttentionItem] = []
@@ -78,7 +99,10 @@ def _signals(rows: list[tuple[OperationSignal, FarmOperation, CropCycle]]) -> Si
                     kb_operation_id=signal.kb_operation_id, kind=kind, summary=summary or raw["message"],
                 ))
     versions = [r[0].kb_version for r in rows if r[0].kb_version]
-    return SignalsBlock(kb_version=versions[0] if versions else None, counts=counts, record_gaps=gaps, needs_attention=attention)
+    return SignalsBlock(
+        kb_version=versions[0] if versions else None, counts=counts, by_phase=_by_phase(rows, taxonomy), record_gaps=gaps,
+        needs_attention=attention,
+    )
 
 
 def _prices(cycles: list[CropCycle], kb, pis, today: date) -> list[PriceBlock]:
@@ -132,6 +156,7 @@ def build_intelligence(
     kb,
     pis,
     today: Optional[date] = None,
+    taxonomy=None,
 ) -> FarmIntelligenceOut:
     now = datetime.now(timezone.utc)
     today = today or now.date()
@@ -141,7 +166,7 @@ def build_intelligence(
         generated_at=now,
         crops=_crops(cycles, today),
         crop_health=_crop_health(scenes, today),
-        signals=_signals(signal_rows),
+        signals=_signals(signal_rows, taxonomy),
         prices=_prices(cycles, kb, pis, today),
         weather=_weather(state, pis),
     )

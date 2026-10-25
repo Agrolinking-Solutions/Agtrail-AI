@@ -18,10 +18,20 @@ class _Contract(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class Phase(_Contract):
+    """One of the five phases a job falls into (pre-planting, planting, post-planting, harvest, post-harvest)."""
+
+    id: str
+    name: str
+    description: str = ""
+
+
 class Category(_Contract):
     id: str
     description: str
     satellite_evidence: str
+    # The phase this group of jobs belongs to. None for the catch-all group, whose jobs name their own.
+    phase: Optional[str] = None
 
 
 class OperationMapping(_Contract):
@@ -30,6 +40,8 @@ class OperationMapping(_Contract):
     signal_category: str
     review_status: str
     reason: str
+    # Set on a job whose phase differs from its group's, such as irrigation inside "something else".
+    phase: Optional[str] = None
 
 
 class Taxonomy(_Contract):
@@ -39,6 +51,7 @@ class Taxonomy(_Contract):
     categories: list[Category]
     operations: dict[str, OperationMapping]
     crop_overrides: dict[str, dict[str, str]] = Field(default_factory=dict)
+    phases: list[Phase] = Field(default_factory=list)
 
     def signal_category_for(self, crop_id: Optional[str], operation_id: str) -> Optional[str]:
         """The shared category for an operation, or None if it has no mapping yet."""
@@ -48,6 +61,20 @@ class Taxonomy(_Contract):
                 return override
         entry = self.operations.get(operation_id)
         return entry.signal_category if entry else None
+
+
+    def phase_name(self, phase_id: Optional[str]) -> Optional[str]:
+        return next((p.name for p in self.phases if p.id == phase_id), None)
+
+    def phase_of_category(self, category_id: Optional[str]) -> Optional[str]:
+        return next((c.phase for c in self.categories if c.id == category_id), None)
+
+    def phase_for(self, crop_id: Optional[str], operation_id: str) -> Optional[str]:
+        """The phase of a Knowledge Base job: its own if it names one, otherwise its group's."""
+        entry = self.operations.get(operation_id)
+        if entry is None:
+            return None
+        return entry.phase or self.phase_of_category(self.signal_category_for(crop_id, operation_id))
 
 
 class CommodityRow(_Contract):

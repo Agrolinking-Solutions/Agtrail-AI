@@ -24,6 +24,7 @@ from app.clients.pis import get_pis_client
 from app.models.farmer import Farmer
 from app.services import crop_health
 from app.services.farm_intelligence import build_intelligence
+from app.services.phases import phase_of
 from app.services.signal_engine import classify_issue
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
@@ -43,6 +44,14 @@ router = APIRouter(
 # cache entry instead of rendering (and paying for) the same image twice.
 _IMAGE_CACHE: dict[tuple[uuid.UUID, str, str], tuple[float, bytes]] = {}
 _IMAGE_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+
+def knowledge_base():
+    return get_knowledge_base_client()
+
+
+def pis():
+    return get_pis_client()
 
 
 def resolve_farm(db: Session, farm_id: uuid.UUID) -> Farm | None:
@@ -148,7 +157,7 @@ def get_crop_health(farm_id: uuid.UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{farm_id}/signals", response_model=FarmSignalsOut)
-def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db), kb=Depends(knowledge_base)):
     """
     What the crop rules say about each operation logged on the farm, newest first.
     status is "ok", "warning", "flagged" (a rule is broken), "not_applicable" (the
@@ -163,6 +172,9 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     if farm is None:
         raise HTTPException(status_code=404, detail="Farm not found")
 
+    taxonomy_result = kb.taxonomy()
+    taxonomy = taxonomy_result.value if taxonomy_result.ok else None
+
     rows = db.execute(
         select(OperationSignal, FarmOperation, CropCycle)
         .join(FarmOperation, FarmOperation.id == OperationSignal.operation_id)
@@ -175,12 +187,20 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
         kind, summary = classify_issue(RuleIssue(**raw))
         return RuleIssueOut(**raw, kind=kind, summary=summary)
 
+    def phase_out(signal, operation, cycle):
+        return phase_of(
+            taxonomy, signal_category=operation.signal_category, kb_operation_id=signal.kb_operation_id,
+            logged_type=operation.logged_type_raw, crop_id=cycle.crop_id,
+        )
+
     signals = [
         OperationSignalOut(
             operation_id=operation.id,
             crop_cycle_id=cycle.id,
             crop_id=cycle.crop_id,
             crop=cycle.crop_raw,
+            phase=phase_out(signal, operation, cycle),
+            phase_name=taxonomy.phase_name(phase_out(signal, operation, cycle)) if taxonomy else None,
             operation_date=operation.operation_date,
             logged_type=operation.logged_type_raw,
             kb_operation_id=signal.kb_operation_id,
@@ -193,22 +213,17 @@ def get_farm_signals(farm_id: uuid.UUID, db: Session = Depends(get_db)):
     ]
     counts: dict[str, int] = {}
     issue_kinds: dict[str, int] = {}
+    phase_counts: dict[str, int] = {}
     for item in signals:
         counts[item.status] = counts.get(item.status, 0) + 1
+        phase_counts[item.phase or "none"] = phase_counts.get(item.phase or "none", 0) + 1
         for issue in item.issues:
             issue_kinds[issue.kind] = issue_kinds.get(issue.kind, 0) + 1
     versions = [row[0].kb_version for row in rows if row[0].kb_version]
     return FarmSignalsOut(
-        farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, issue_kinds=issue_kinds, signals=signals
+        farm_id=farm.id, kb_version=versions[0] if versions else None, counts=counts, phases_available=taxonomy is not None,
+        phase_counts=phase_counts, issue_kinds=issue_kinds, signals=signals,
     )
-
-
-def knowledge_base():
-    return get_knowledge_base_client()
-
-
-def pis():
-    return get_pis_client()
 
 
 @router.get("/{farm_id}/intelligence", response_model=FarmIntelligenceOut)
@@ -238,8 +253,10 @@ def get_farm_intelligence(
         .join(CropCycle, CropCycle.id == OperationSignal.crop_cycle_id)
         .where(OperationSignal.farm_id == farm.id)
     ).all()
+    taxonomy_result = kb.taxonomy()
     return build_intelligence(
-        farm.id, farmer.state if farmer else None, cycles, scenes, [tuple(row) for row in signal_rows], kb, prices
+        farm.id, farmer.state if farmer else None, cycles, scenes, [tuple(row) for row in signal_rows], kb, prices,
+        taxonomy=taxonomy_result.value if taxonomy_result.ok else None,
     )
 
 

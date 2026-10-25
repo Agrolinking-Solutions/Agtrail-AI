@@ -88,14 +88,30 @@ def db_session(migrated_db):
         yield session
 
 
+class _StandInKnowledgeBase:
+    """Serves the captured taxonomy, so no test reaches the real Knowledge Base over the network."""
+
+    def taxonomy(self):
+        from app.clients.base import ClientResult
+        from app.contracts.knowledge_base import Taxonomy
+
+        path = Path(__file__).parent / "fixtures" / "knowledge_base" / "taxonomy.json"
+        return ClientResult(value=Taxonomy.model_validate(json.loads(path.read_text())))
+
+
 @pytest.fixture
 def client(db_session):
     from fastapi.testclient import TestClient
 
+    from app.api.routes.farms import knowledge_base
     from app.main import app
 
-    with TestClient(app) as test_client:
-        yield test_client
+    app.dependency_overrides[knowledge_base] = _StandInKnowledgeBase
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.pop(knowledge_base, None)
 
 
 def post_event(client, payload: dict, signature: str | None = "auto"):

@@ -183,6 +183,13 @@ kept. Served by `GET /farms/{id}/signals`: `ok`, `warning`, `flagged` (a rule is
 broken), `not_applicable` or `unknown` (not judged, with the reason). An operation
 is only judged when it can be identified for certain.
 
+Every signal also carries its **phase** (pre-planting, planting, post-planting, harvest or
+post-harvest), looked up from the Knowledge Base when the endpoint is called: from the step the
+operation was identified as, else from its own logged name (irrigation, pruning), else from its
+job group. An operation with no phase says so (`phase: null`, counted under `none`), and if the
+Knowledge Base cannot be reached the signals still come back with `phases_available: false`.
+`/farms/{id}/intelligence` has the same operations grouped by phase in `signals.by_phase`.
+
 The daily `ingest_ndvi` run looks back 20 days for farms that already have
 satellite passes, and 90 days for a farm that has none yet.
 

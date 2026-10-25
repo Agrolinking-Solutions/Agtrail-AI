@@ -10,6 +10,18 @@
           "title": "Id",
           "type": "string"
         },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
         "satellite_evidence": {
           "title": "Satellite Evidence",
           "type": "string"
@@ -33,6 +45,18 @@
           "title": "Name",
           "type": "string"
         },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
         "reason": {
           "title": "Reason",
           "type": "string"
@@ -54,6 +78,30 @@
         "reason"
       ],
       "title": "OperationMapping",
+      "type": "object"
+    },
+    "Phase": {
+      "description": "One of the five phases a job falls into (pre-planting, planting, post-planting, harvest, post-harvest).",
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Phase",
       "type": "object"
     }
   },
@@ -82,6 +130,13 @@
       },
       "title": "Operations",
       "type": "object"
+    },
+    "phases": {
+      "items": {
+        "$ref": "#/$defs/Phase"
+      },
+      "title": "Phases",
+      "type": "array"
     },
     "review_status": {
       "title": "Review Status",
