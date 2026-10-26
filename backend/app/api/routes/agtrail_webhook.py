@@ -14,6 +14,7 @@ from app.models.farm import Farm
 from app.models.visit import FarmVisit
 from app.models.image import FarmImage, ImageSource, ImageStatus
 from app.schemas.agtrail_webhook import (
+    PLACEHOLDERS,
     agtrail_webhook_adapter,
     redacted_payload,
     FarmCreatedPayload,
@@ -57,8 +58,10 @@ async def _read_limited_body(request: Request) -> bytes:
 def _get_or_create_farmer(db: Session, farm_data, farmer_data) -> Farmer:
     # Temporary, minimal lookup logic. This will move into the dedicated
     # schema mapper module once it exists.
+    # A farm sent without its owner's id gets one owner record of its own, found again by the farm id.
+    owner_key = farmer_data.agtrail_farmer_id or f"owner-of:{farm_data.agtrail_farm_id}"
     farmer = db.execute(
-        select(Farmer).where(Farmer.agtrail_farmer_id == farmer_data.agtrail_farmer_id)
+        select(Farmer).where(Farmer.agtrail_farmer_id == owner_key)
     ).scalar_one_or_none()
 
     if farmer is None:
@@ -67,10 +70,17 @@ def _get_or_create_farmer(db: Session, farm_data, farmer_data) -> Farmer:
             phone=farmer_data.phone,
             state=farm_data.state,
             lga=farm_data.lga,
-            agtrail_farmer_id=farmer_data.agtrail_farmer_id,
+            agtrail_farmer_id=owner_key,
         )
         db.add(farmer)
         db.flush()
+        return farmer
+
+    # Fill a place that was "Not recorded" when it is known now; never replace a real one.
+    if farmer.state.strip().lower() in PLACEHOLDERS and farm_data.state.strip().lower() not in PLACEHOLDERS:
+        farmer.state = farm_data.state
+    if farmer.lga.strip().lower() in PLACEHOLDERS and farm_data.lga.strip().lower() not in PLACEHOLDERS:
+        farmer.lga = farm_data.lga
 
     return farmer
 
@@ -84,8 +94,8 @@ def _get_or_create_farm(db: Session, farm_data, farmer: Farmer, commodity: str |
         farm = Farm(
             farmer_id=farmer.id,
             name=farm_data.name,
-            area_hectares=farm_data.hectares,
-            coordinates=_point(farm_data.latitude, farm_data.longitude),
+            area_hectares=farm_data.known_hectares,
+            coordinates=_point(farm_data.latitude, farm_data.longitude) if farm_data.has_location else None,
             commodity=commodity,
             soil_type=farm_data.soil_type,
             agtrail_farm_id=farm_data.agtrail_farm_id,
@@ -97,8 +107,10 @@ def _get_or_create_farm(db: Session, farm_data, farmer: Farmer, commodity: str |
     # A later crop cycle can change what the farm is growing.
     if commodity is not None:
         farm.commodity = commodity
-    if farm.coordinates is None:
+    if farm.coordinates is None and farm_data.has_location:
         farm.coordinates = _point(farm_data.latitude, farm_data.longitude)
+    if not farm.area_hectares and farm_data.known_hectares:
+        farm.area_hectares = farm_data.known_hectares
     # Soil can arrive later than the farm, or be corrected; a message without it never clears it.
     if farm_data.soil_type:
         farm.soil_type = farm_data.soil_type

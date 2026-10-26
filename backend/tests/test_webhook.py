@@ -250,3 +250,84 @@ def test_unread_farm_fields_are_kept_in_the_stored_event(client, db_session):
     post_event(client, _with_soil(load_payload("test_payload_farm_created.json"), soil_texture="loamy"))
 
     assert db_session.execute(select(AgtrailSyncLog)).scalar_one().payload["farm"]["soil_texture"] == "loamy"
+
+
+# ---- AgTrail's placeholders (26 Oct 2026): "Not recorded", 0 for missing numbers, a farmer id that can be missing ----
+
+def _payload(**farm):
+    p = copy.deepcopy(load_payload("test_payload_farm_created.json"))
+    p["farm"].update(farm)
+    return p
+
+
+def test_not_recorded_soil_is_no_soil_and_never_overwrites_a_real_one(client, db_session):
+    from app.models import Farm
+
+    p = _payload(soil_type="sandy_loam")
+    post_event(client, p)
+    again = _payload(soil_type="Not recorded")
+    again["event_id"] = "evt-not-recorded"
+    post_event(client, again)
+
+    db_session.expire_all()
+    assert db_session.execute(select(Farm)).scalar_one().soil_type == "sandy_loam"
+
+
+def test_a_new_farm_with_not_recorded_soil_has_none(client, db_session):
+    from app.models import Farm
+
+    post_event(client, _payload(soil_type="Not recorded"))
+    assert db_session.execute(select(Farm)).scalar_one().soil_type is None
+
+
+def test_zero_area_and_zero_location_mean_missing(client, db_session):
+    from app.models import Farm
+
+    post_event(client, _payload(hectares=0, latitude=0, longitude=0))
+    farm = db_session.execute(select(Farm)).scalar_one()
+    assert farm.area_hectares is None and farm.coordinates is None
+
+
+def test_area_and_location_arrive_later_without_replacing_real_ones(client, db_session):
+    from app.models import Farm
+
+    post_event(client, _payload(hectares=0, latitude=0, longitude=0))
+    later = _payload(hectares=1.5, latitude=8.1, longitude=4.2)
+    later["event_id"] = "evt-later"
+    post_event(client, later)
+    other = _payload(hectares=9, latitude=1, longitude=1)
+    other["event_id"] = "evt-other"
+    post_event(client, other)
+
+    db_session.expire_all()
+    farm = db_session.execute(select(Farm)).scalar_one()
+    assert farm.area_hectares == 1.5 and farm.coordinates is not None
+
+
+def test_a_missing_farmer_id_does_not_reject_the_event(client, db_session):
+    from app.models import Farm, Farmer
+
+    p = copy.deepcopy(load_payload("test_payload_farm_created.json"))
+    p["farmer"]["agtrail_farmer_id"] = None
+    assert post_event(client, p).status_code == 200
+    again = copy.deepcopy(p)
+    again["event_id"] = "evt-again"
+    assert post_event(client, again).status_code == 200
+
+    assert _count(db_session, Farmer) == 1 and _count(db_session, Farm) == 1
+
+
+def test_a_known_place_replaces_not_recorded_but_not_a_real_one(client, db_session):
+    from app.models import Farmer
+
+    post_event(client, _payload(state="Not recorded", lga="Not recorded"))
+    later = _payload(state="Ondo State", lga="Idanre")
+    later["event_id"] = "evt-place"
+    post_event(client, later)
+    other = _payload(state="Oyo", lga="Ibadan North")
+    other["event_id"] = "evt-place2"
+    post_event(client, other)
+
+    db_session.expire_all()
+    farmer = db_session.execute(select(Farmer)).scalar_one()
+    assert (farmer.state, farmer.lga) == ("Ondo State", "Idanre")

@@ -10,6 +10,10 @@ Latitude = Annotated[float, Field(ge=-90, le=90)]
 Longitude = Annotated[float, Field(ge=-180, le=180)]
 
 
+# AgTrail fills a missing text field with one of these instead of leaving it empty.
+PLACEHOLDERS = {"not recorded", "unknown", "unnamed farm"}
+
+
 class WebhookFarm(BaseModel):
     # Fields we do not read yet are kept (and so end up in the stored copy of the event), so we can
     # see what AgTrail really sends instead of guessing.
@@ -32,13 +36,25 @@ class WebhookFarm(BaseModel):
     @classmethod
     def _soil_type_text(cls, value):
         if isinstance(value, (str, int, float)) and not isinstance(value, bool):
-            text = str(value).strip()
-            return text[:100] or None
+            text = str(value).strip()[:100]
+            # AgTrail writes "Not recorded" when it has nothing: that is no soil, not a soil.
+            return None if not text or text.lower() in PLACEHOLDERS else text
         return None
+
+    @property
+    def known_hectares(self) -> float | None:
+        """AgTrail sends 0 when the area is not on record."""
+        return self.hectares if self.hectares and self.hectares > 0 else None
+
+    @property
+    def has_location(self) -> bool:
+        """AgTrail sends 0, 0 when there is no location on file."""
+        return not (self.latitude == 0 and self.longitude == 0)
 
 
 class WebhookFarmer(BaseModel):
-    agtrail_farmer_id: AgtrailId
+    # AgTrail says this is rarely missing. A missing one must not make the whole event a 422.
+    agtrail_farmer_id: AgtrailId | None = None
     name: str = Field(max_length=200)
     phone: str = Field(max_length=20)
 
