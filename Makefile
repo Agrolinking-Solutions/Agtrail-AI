@@ -37,5 +37,8 @@ sync-boundaries:
 backfill-operations:
 	cd backend && .venv/bin/python -m app.jobs.backfill_operations
 
+backfill-ndvi-frames:
+	cd backend && .venv/bin/python -m app.jobs.backfill_ndvi_frames
+
 up:
 	docker compose -f infra/docker/docker-compose.yml up --build

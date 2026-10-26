@@ -251,3 +251,13 @@ cd backend && .venv/bin/pip install -r requirements-ml.txt
 python ml/utils/dataset_report.py
 python ml/training/train_stage_classifier.py --epochs 10
 ```
+
+
+## NDVI frames (timelapse)
+
+Every clear satellite pass over a mapped farm (at least half the farm clear) gets one picture, kept in our bucket: the NDVI colours with cloud pixels transparent. The daily satellite run saves the new ones (up to 5 per farm per run); `python -m app.jobs.backfill_ndvi_frames [--limit N]` makes the ones for passes already stored as numbers. A frame is made once and never replaced; a failed one is logged and skipped, and never stops the satellite run.
+
+- `GET /farms/{id}/ndvi-frames`: the frames oldest first, ready to play, each with its date, NDVI and clear fraction.
+- `GET /farms/{id}/ndvi-frames/{date}`: the PNG (cached for a year; frames never change).
+
+Frames are 10 m Sentinel-2 pictures, so a small farm is a few dozen pixels. They show crop health changing, not individual rows. They need `S3_BUCKET` to be set.

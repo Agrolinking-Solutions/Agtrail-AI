@@ -146,6 +146,22 @@ function evaluatePixel(s) {
 
 IMAGE_STYLES = {"ndvi": NDVI_IMAGE_EVALSCRIPT, "true-color": TRUE_COLOR_EVALSCRIPT}
 
+# The NDVI picture for one pass, kept as a frame of the farm's timelapse. Cloud, cloud shadow and
+# cirrus pixels are made transparent per pixel, the same classes the scene numbers leave out, so a
+# half-cloudy pass shows only what the satellite really saw of the crop.
+FRAME_EVALSCRIPT = NDVI_IMAGE_EVALSCRIPT.replace('["B04", "B08", "dataMask"]', '["B04", "B08", "SCL", "dataMask"]', 1).replace(
+    "return [rgb[0], rgb[1], rgb[2], s.dataMask];",
+    "var cloudy = %s;\n  var clear = cloudy.indexOf(s.SCL) === -1 ? 1 : 0;\n  return [rgb[0], rgb[1], rgb[2], s.dataMask * clear];" % list(CLOUDY_SCL_CLASSES),
+    1,
+)
+
+
+def fetch_farm_frame(boundary_geojson: dict, scene_date: date, token: str) -> bytes:
+    """One pass as a picture. The window is that single day, and the tile-level cloud limit is lifted
+    because the cloud is masked per pixel instead: a pass can be clear over this farm while its whole
+    tile is cloudy."""
+    return fetch_farm_image(FRAME_EVALSCRIPT, boundary_geojson, scene_date, scene_date + timedelta(days=1), token, max_cloud=100)
+
 
 @dataclass(frozen=True)
 class NdviPeriod:
@@ -339,6 +355,7 @@ def fetch_farm_image(
     start: date,
     end: date,
     token: str,
+    max_cloud: int = MAX_CLOUD_COVERAGE,
 ) -> bytes:
     """Renders a single PNG, the clearest composite Sentinel-2 can build
     from the window, masked outside the farm boundary via dataMask as
@@ -353,7 +370,7 @@ def fetch_farm_image(
             "data": [
                 {
                     "type": "sentinel-2-l2a",
-                    "dataFilter": {"timeRange": time_range, "maxCloudCoverage": MAX_CLOUD_COVERAGE, "mosaickingOrder": "leastCC"},
+                    "dataFilter": {"timeRange": time_range, "maxCloudCoverage": max_cloud, "mosaickingOrder": "leastCC"},
                 }
             ],
         },
