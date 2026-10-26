@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.ndvi import FarmNdviFrame, FarmNdviScene
-from app.services.image_archive import _get_s3_client, _upload_s3
+from app.services.image_archive import _get_s3_client
 from app.services.sentinel import fetch_farm_frame
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,10 @@ def render_png(boundary_geojson: dict, scene_date: date, token: str) -> bytes:
 
 
 def store_png(data: bytes, key: str) -> str:
-    return _upload_s3(data, key, "image/png")
+    """Writes the frame straight away. There is no "does it exist" check first: a frame is made once (the
+    database row says so), and writing the same picture twice is harmless."""
+    _get_s3_client().put_object(Bucket=settings.S3_BUCKET, Key=key, Body=data, ContentType="image/png")
+    return f"s3://{settings.S3_BUCKET}/{key}"
 
 
 def read_png(pointer: str) -> bytes:
