@@ -37,5 +37,8 @@ sync-boundaries:
 backfill-operations:
 	cd backend && .venv/bin/python -m app.jobs.backfill_operations
 
+backfill-crop-cycles:
+	cd backend && .venv/bin/python -m app.jobs.backfill_crop_cycles
+
 up:
 	docker compose -f infra/docker/docker-compose.yml up --build
