@@ -7,19 +7,31 @@ crop's price, only when the price is known and the unit conversion is sourced.
 
 The crop's numbers and their sources come from the Knowledge Base, with the date they were
 researched. This is the typical result for a farm of this crop and size, not a forecast for this
-farm: it knows nothing about this season's rain, soil, seed or care. Anything it cannot work out
+farm: it knows nothing about this season's rain, seed or care. The farm's recorded soil is compared
+with what the crop prefers; only a soil the crop file says the crop does badly on changes the range
+(its high end is held at the typical yield). Every other case leaves the numbers alone. Anything it cannot work out
 is left out with the reason, never filled in.
 """
 
 from datetime import date, timedelta
 from typing import Optional
 
-from app.schemas.harvest import AmountOut, HarvestEstimateOut, PerHectareOut, SourceOut, TimingOut, ValueOut
+from app.schemas.harvest import AmountOut, HarvestEstimateOut, PerHectareOut, SoilOut, SourceOut, TimingOut, ValueOut
 from app.services.prices import crop_price
 
 
 def _none(code: str, reason: str, crop_id: Optional[str] = None, crop: Optional[str] = None) -> HarvestEstimateOut:
     return HarvestEstimateOut(status="no_estimate", reason_code=code, reason=reason, crop_id=crop_id, crop=crop)
+
+
+def _soil(crop_id: str, soil_type: Optional[str], kb) -> SoilOut:
+    if not soil_type or not soil_type.strip():
+        return SoilOut(status="unknown", note="No soil type is recorded for this farm, so the soil is not taken into account.")
+    result = kb.soil_match(crop_id, soil_type)
+    if not result.ok:
+        return SoilOut(recorded=soil_type, status="unknown", note=f"The soil could not be checked just now: {result.unavailable_reason}")
+    m = result.value
+    return SoilOut(recorded=soil_type, status=m.status, texture=m.texture, preferred=m.preferred, note=m.note)
 
 
 def _round_naira(value: float) -> float:
@@ -69,6 +81,7 @@ def build_estimate(
     kb,
     pis,
     today: Optional[date] = None,
+    soil_type: Optional[str] = None,
 ) -> HarvestEstimateOut:
     today = today or date.today()
     if not crop_id:
@@ -90,13 +103,21 @@ def build_estimate(
         high_tonnes=round(area_ha * y.normal_high, 2),
         per_hectare=PerHectareOut(typical=y.typical, low=y.normal_low, high=y.normal_high),
     )
+    soil = _soil(crop_id, soil_type, kb)
+    assumptions = [f"Assumes {crop_name or crop_id} covers the whole recorded farm size ({round(area_ha, 2)} ha)."]
+    if soil.status == "avoid":
+        # The crop file says this crop does badly on this soil: do not promise more than a typical farm gets.
+        amount.high_tonnes = amount.typical_tonnes
+        amount.per_hectare.high = amount.per_hectare.typical
+        soil.effect = "high_capped_at_typical"
+        assumptions.append(f"The farm's soil ({soil.texture}) is one this crop does badly on, so the high end is held at the typical yield.")
     timing, timing_note = _timing(basis.harvest_window, planted_on, transplanted_on, today)
     value, value_note = _value(crop_id, basis, amount, kb, pis, today)
 
     return HarvestEstimateOut(
         status="ok", crop_id=crop_id, crop=crop_name, as_of=basis.as_of, confidence=basis.confidence,
-        amount=amount, timing=timing, timing_note=timing_note, value=value, value_note=value_note,
-        assumptions=[f"Assumes {crop_name or crop_id} covers the whole recorded farm size ({round(area_ha, 2)} ha)."],
+        amount=amount, soil=soil, timing=timing, timing_note=timing_note, value=value, value_note=value_note,
+        assumptions=assumptions,
         caveats=basis.caveats, method=basis.method,
         sources=[SourceOut(title=s.title, publisher=s.publisher, url=s.url, figure=s.figure, year=s.year) for s in basis.sources],
     )

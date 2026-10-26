@@ -1,0 +1,69 @@
+{
+  "description": "How a farm's recorded soil compares with what the crop prefers. Only status \"avoid\" should\nchange a number; \"unknown\" and \"not_listed\" never do.",
+  "properties": {
+    "avoid": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Avoid",
+      "type": "array"
+    },
+    "crop_id": {
+      "title": "Crop Id",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    },
+    "preferred": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preferred",
+      "type": "array"
+    },
+    "soil": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Soil"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "texture": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Texture"
+    }
+  },
+  "required": [
+    "crop_id",
+    "status"
+  ],
+  "title": "SoilMatchBasis",
+  "type": "object"
+}

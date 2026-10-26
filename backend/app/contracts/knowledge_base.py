@@ -181,6 +181,19 @@ class HarvestEstimateBasis(_Contract):
     sources: list[EstimateSource] = Field(default_factory=list)
 
 
+class SoilMatchBasis(_Contract):
+    """How a farm's recorded soil compares with what the crop prefers. Only status "avoid" should
+    change a number; "unknown" and "not_listed" never do."""
+
+    crop_id: str
+    soil: Optional[str] = None
+    texture: Optional[str] = None
+    status: str  # preferred | avoid | not_listed | unknown
+    preferred: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+    note: Optional[str] = None
+
+
 class RuleIssue(_Contract):
     rule_id: str
     severity: str
@@ -224,6 +237,7 @@ class Suggestions(_Contract):
 CONTRACT_MODELS = {
     "crop_steps": CropSteps,
     "harvest_estimate": HarvestEstimateBasis,
+    "soil_match": SoilMatchBasis,
     "validation": ValidationReport,
     "suggestions": Suggestions,
     "taxonomy": Taxonomy,

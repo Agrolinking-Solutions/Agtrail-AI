@@ -261,6 +261,7 @@ def get_farm_intelligence(
         farm.id, farmer.state if farmer else None, cycles, scenes, [tuple(row) for row in signal_rows], kb, prices,
         taxonomy=taxonomy_result.value if taxonomy_result.ok else None,
         area_ha=farm.area_hectares, transplanted_on=_transplanted_on(db, newest) if newest else None,
+        soil_type=farm.soil_type,
     )
 
 
@@ -301,6 +302,7 @@ def get_harvest_estimate(
     estimate = build_estimate(
         crop_id=cycle.crop_id, crop_name=(cycle.crop_raw or "").strip(), area_ha=farm.area_hectares,
         planted_on=cycle.planted_date, transplanted_on=_transplanted_on(db, cycle), kb=kb, pis=prices,
+        soil_type=farm.soil_type,
     )
     return FarmHarvestEstimateOut(farm_id=str(farm.id), **estimate.model_dump())
 

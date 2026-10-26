@@ -10,6 +10,7 @@ Every method returns a ClientResult, so a Knowledge Base outage shows up as an
 service is down but we have an older answer.
 """
 
+from urllib.parse import quote
 from functools import lru_cache
 from typing import Optional
 
@@ -21,6 +22,7 @@ from app.contracts.knowledge_base import (
     CommodityMapping,
     CropSteps,
     HarvestEstimateBasis,
+    SoilMatchBasis,
     KnowledgeBaseVersion,
     RegionMapping,
     Suggestions,
@@ -63,6 +65,9 @@ class KnowledgeBaseClient:
 
     def harvest_estimate(self, crop_id: str) -> ClientResult[HarvestEstimateBasis]:
         return self._service.fetch(f"/v1/crops/{crop_id}/harvest-estimate", HarvestEstimateBasis, REFERENCE_TTL_SECONDS)
+
+    def soil_match(self, crop_id: str, soil: str) -> ClientResult[SoilMatchBasis]:
+        return self._service.fetch(f"/v1/crops/{crop_id}/soil-match?soil={quote(soil, safe='')}", SoilMatchBasis, REFERENCE_TTL_SECONDS)
 
     def validate(
         self,

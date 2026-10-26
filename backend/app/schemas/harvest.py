@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -52,6 +53,18 @@ class SourceOut(BaseModel):
     year: int
 
 
+class SoilOut(BaseModel):
+    # What AgTrail recorded for the farm, in its own words
+    recorded: Optional[str] = None
+    # preferred | avoid | not_listed | unknown
+    status: str
+    texture: Optional[str] = None
+    preferred: list[str] = []
+    note: Optional[str] = None
+    # none | high_capped_at_typical: whether the soil changed the range
+    effect: str = "none"
+
+
 class HarvestEstimateOut(BaseModel):
     # ok | no_estimate
     status: str
@@ -66,6 +79,7 @@ class HarvestEstimateOut(BaseModel):
     confidence: float | None = None
     amount: AmountOut | None = None
     timing: TimingOut | None = None
+    soil: SoilOut | None = None
     timing_note: str | None = None
     value: ValueOut | None = None
     value_note: str | None = None
