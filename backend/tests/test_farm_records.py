@@ -161,7 +161,7 @@ def test_crop_text_is_cleaned_up_through_the_aliases(db_session):
     from app.services.farm_records import resolve_crop
 
     assert resolve_crop(db_session, "MAIZE") == ("maize", "maize")
-    assert resolve_crop(db_session, "  Soya   Beans ") == ("soybean", None)
+    assert resolve_crop(db_session, "  Soya   Beans ") == ("soybean", "soybean")
     assert resolve_crop(db_session, "not a known crop") == (None, None)
 
 
@@ -268,3 +268,42 @@ def test_backfill_keeps_the_logged_date_from_the_stored_payload(client, db_sessi
 
     db_session.expire_all()
     assert db_session.execute(select(FarmOperation)).scalar_one().operation_date == date(2026, 8, 2)
+
+
+def test_soybean_spellings_reach_the_soybean_rule_file(db_session):
+    from app.services.farm_records import resolve_crop
+
+    for text in ("Soyabean", "Soybeans", "soya beans", "SOYBEAN "):
+        assert resolve_crop(db_session, text) == ("soybean", "soybean"), text
+
+
+def test_crop_text_that_is_ambiguous_stays_unmatched(db_session):
+    from app.services.farm_records import resolve_crop
+
+    # 'Beans' could be cowpea or another bean; 'Maize and Cassava' is two crops. Never guess.
+    assert resolve_crop(db_session, "Beans")[1] is None
+    assert resolve_crop(db_session, "Maize and Cassava")[1] is None
+
+
+def test_a_cycle_stored_before_the_fix_is_matched_by_the_migration_sql(db_session):
+    import uuid
+    from datetime import date
+
+    from sqlalchemy import select, text
+
+    from app.models import CropCycle, Farm, Farmer
+
+    farmer = Farmer(full_name="T", phone="1", state="Oyo", lga="x", agtrail_farmer_id="t1")
+    db_session.add(farmer); db_session.flush()
+    farm = Farm(farmer_id=farmer.id, name="f", agtrail_farm_id="t-farm")
+    db_session.add(farm); db_session.flush()
+    cycle = CropCycle(farm_id=farm.id, agtrail_cycle_id="t-cycle", crop_raw=" Soyabean ", planted_date=date(2026, 9, 1), status="active")
+    db_session.add(cycle); db_session.commit()
+
+    db_session.execute(text(
+        "UPDATE crop_cycles c SET crop_id = a.kb_crop_id, crop_canonical = a.canonical_name FROM crop_aliases a "
+        "WHERE c.crop_id IS NULL AND a.kb_crop_id IS NOT NULL "
+        "AND lower(regexp_replace(trim(c.crop_raw), '\\s+', ' ', 'g')) = a.alias"
+    ))
+    db_session.commit(); db_session.expire_all()
+    assert db_session.get(CropCycle, cycle.id).crop_id == "soybean"
