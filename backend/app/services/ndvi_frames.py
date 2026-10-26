@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 MIN_CLEAR_FRACTION = 0.5
 MAX_FRAMES_PER_FARM_PER_RUN = 5
+# A farm whose frames fail this many times in a row is left for the next run: something is wrong, and
+# every attempt costs a Copernicus render.
+MAX_CONSECUTIVE_FAILURES = 2
+CHECK_KEY = "ndvi-frames/.storage-check"
 
 
 def frames_enabled() -> bool:
@@ -31,6 +35,21 @@ def frames_enabled() -> bool:
 
 def frame_key(farm_id: uuid.UUID, scene_date: date) -> str:
     return f"ndvi-frames/{farm_id}/{scene_date.isoformat()}.png"
+
+
+def check_storage() -> str | None:
+    """Can we write a file to the bucket and read it back? None when yes, else what went wrong, in words.
+    Asked before any picture is rendered, so a bucket we cannot use costs nothing instead of a render per frame."""
+    if not frames_enabled():
+        return "No storage bucket is configured (S3_BUCKET)."
+    try:
+        client = _get_s3_client()
+        client.put_object(Bucket=settings.S3_BUCKET, Key=CHECK_KEY, Body=b"ok", ContentType="text/plain")
+        if client.get_object(Bucket=settings.S3_BUCKET, Key=CHECK_KEY)["Body"].read() != b"ok":
+            return "The bucket returned something other than what was written."
+    except Exception as exc:
+        return f"The bucket cannot be written to and read from: {exc}"
+    return None
 
 
 def render_png(boundary_geojson: dict, scene_date: date, token: str) -> bytes:
@@ -55,6 +74,7 @@ def save_missing_frames(db: Session, farm, boundary_geojson: dict, token: str, l
     result = {"saved": 0, "failed": 0}
     if not frames_enabled():
         return result
+    in_a_row = 0
     have = set(db.scalars(select(FarmNdviFrame.scene_date).where(FarmNdviFrame.farm_id == farm.id)).all())
     scenes = db.scalars(
         select(FarmNdviScene).where(FarmNdviScene.farm_id == farm.id).order_by(FarmNdviScene.scene_date.desc())
@@ -68,8 +88,12 @@ def save_missing_frames(db: Session, farm, boundary_geojson: dict, token: str, l
             pointer = store_png(render_png(boundary_geojson, scene.scene_date, token), frame_key(farm.id, scene.scene_date))
         except Exception as exc:
             result["failed"] += 1
+            in_a_row += 1
             logger.warning("Frame for farm %s on %s failed: %s", farm.id, scene.scene_date, exc)
+            if in_a_row >= MAX_CONSECUTIVE_FAILURES:
+                break
             continue
+        in_a_row = 0
         db.add(FarmNdviFrame(
             farm_id=farm.id, scene_date=scene.scene_date, ndvi_mean=scene.ndvi_mean,
             clear_fraction=scene.clear_fraction, image_pointer=pointer,

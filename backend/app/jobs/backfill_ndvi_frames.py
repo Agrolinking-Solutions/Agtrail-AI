@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.jobs.ingest_ndvi import _mapped_farms
-from app.services.ndvi_frames import frames_enabled, save_missing_frames
+from app.services.ndvi_frames import check_storage, frames_enabled, save_missing_frames
 from app.services.sentinel import get_access_token
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,11 @@ def backfill_ndvi_frames(limit: int | None = None) -> dict:
     summary = {"farms": 0, "frames_saved": 0, "frames_failed": 0}
     if not frames_enabled():
         logger.error("No storage bucket is configured (S3_BUCKET), so frames cannot be kept.")
+        return summary
+    problem = check_storage()
+    if problem:
+        logger.error("Nothing was rendered. %s", problem)
+        summary["storage_problem"] = problem
         return summary
     token = get_access_token()
     with SessionLocal() as db:
@@ -39,6 +44,10 @@ def backfill_ndvi_frames(limit: int | None = None) -> dict:
             summary["farms"] += 1
             summary["frames_saved"] += result["saved"]
             summary["frames_failed"] += result["failed"]
+            # Failing across several farms with nothing saved means something is wrong; stop spending renders.
+            if summary["frames_saved"] == 0 and summary["frames_failed"] >= 6:
+                logger.error("Stopping: %d frames failed and none saved.", summary["frames_failed"])
+                break
     return summary
 
 

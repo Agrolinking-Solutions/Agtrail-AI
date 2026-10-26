@@ -10,7 +10,7 @@ from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.models.farm import Farm
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
-from app.services.ndvi_frames import save_missing_frames
+from app.services.ndvi_frames import check_storage, frames_enabled, save_missing_frames
 from app.services.sentinel import default_window, fetch_farm_ndvi, fetch_farm_scenes, get_access_token
 
 logger = logging.getLogger(__name__)
@@ -132,6 +132,10 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
 
     summary = {"farms": 0, "scenes_written": 0, "farms_failed": 0, "frames_saved": 0, "frames_failed": 0}
     token = get_access_token()
+    # Pictures are secondary. Checked once up front, so a bucket we cannot use never costs a render.
+    storage_problem = check_storage() if frames_enabled() else None
+    if storage_problem:
+        logger.warning("Timelapse frames are skipped this run. %s", storage_problem)
 
     with SessionLocal() as db:
         farms = _mapped_farms(db)
@@ -152,9 +156,10 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
             # one that is cut off must keep what it already fetched.
             db.commit()
             # The picture of each new clear pass, for the farm's timelapse. Never stops the run.
-            frames = save_missing_frames(db, farm, boundary_geojson, token)
-            summary["frames_saved"] += frames["saved"]
-            summary["frames_failed"] += frames["failed"]
+            if frames_enabled() and not storage_problem:
+                frames = save_missing_frames(db, farm, boundary_geojson, token)
+                summary["frames_saved"] += frames["saved"]
+                summary["frames_failed"] += frames["failed"]
             _progress("Scenes", index, len(farms))
 
     return summary
