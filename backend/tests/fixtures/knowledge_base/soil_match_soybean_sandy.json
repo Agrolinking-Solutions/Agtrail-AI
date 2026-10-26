@@ -1,0 +1,13 @@
+{
+  "crop_id": "soybean",
+  "soil": "sandy",
+  "texture": "sand",
+  "preferred": [
+    "any except sandy, gravelly or shallow soils"
+  ],
+  "avoid": [
+    "sand"
+  ],
+  "status": "avoid",
+  "note": "The crop file says soybean does badly on sand soil."
+}

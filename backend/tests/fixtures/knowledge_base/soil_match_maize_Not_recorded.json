@@ -1,0 +1,13 @@
+{
+  "crop_id": "maize",
+  "soil": "Not recorded",
+  "texture": null,
+  "preferred": [
+    "sandy loam",
+    "loam",
+    "clay loam"
+  ],
+  "avoid": [],
+  "status": "unknown",
+  "note": "No usable soil type is recorded for this farm, so the soil is not taken into account."
+}

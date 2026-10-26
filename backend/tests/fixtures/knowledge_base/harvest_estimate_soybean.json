@@ -1,0 +1,46 @@
+{
+  "crop_id": "soybean",
+  "available": true,
+  "as_of": "2026-10-25",
+  "per": "season",
+  "yield_basis": "grain",
+  "yield_t_per_ha": {
+    "typical": 1.02,
+    "normal_low": 0.7,
+    "normal_high": 2.04,
+    "national_recent_low": 1.02,
+    "national_recent_high": 1.2,
+    "ruleset_high": 3.0
+  },
+  "harvest_window": {
+    "after": "planting",
+    "min_days": 90,
+    "max_days": 120
+  },
+  "confidence": 0.5,
+  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset; for soybean, the IITA-based range). The high end is that ruleset's best case, capped at twice the typical yield, so it stays close to what farms really get (CEO decision, 25 Oct 2026). The harvest window is the expected window in the crop's timing rules. The range is what is normal for a farm, not a forecast for this one.",
+  "caveats": [
+    "National averages hide the spread between farms, so a single farm can be well outside the typical figure.",
+    "FAO's national figures for Nigeria are compiled from national reports and FAO estimates and move little from year to year.",
+    "Not a prediction for this farm: it does not know this season's rain, soil, seed or care.",
+    "The high end is capped at twice the typical yield (2.04 t/ha). The ruleset's own best case is 3.0 t/ha, which a well-run farm can reach but few farms do."
+  ],
+  "sources": [
+    {
+      "title": "FAOSTAT, Production: Crops and livestock products, Nigeria national yield 1961 to 2024 (via Our World in Data)",
+      "publisher": "FAO, processed by Our World in Data",
+      "url": "https://ourworldindata.org/grapher/soybean-yields",
+      "figure": "1.02 t/ha in 2024; 1.02 to 1.2 t/ha across 2020 to 2024",
+      "year": 2024,
+      "opened": "2026-10-25"
+    },
+    {
+      "title": "IITA, Farmers' Guide to Soybean Production in Northern Nigeria and IITA news item on soybean yields (the CEO's ruleset has no soybean section)",
+      "publisher": "IITA",
+      "url": "https://iita.org/?p=15511",
+      "figure": "current average yields of the developed varieties 0.8 to 1.2 t/ha; trial sites 0.7 to 2.8 t/ha (article dated 4 April 2020)",
+      "year": 2020,
+      "opened": "2026-10-25"
+    }
+  ]
+}

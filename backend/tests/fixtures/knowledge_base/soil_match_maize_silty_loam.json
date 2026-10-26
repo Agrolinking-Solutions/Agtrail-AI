@@ -1,0 +1,13 @@
+{
+  "crop_id": "maize",
+  "soil": "silty_loam",
+  "texture": "silt loam",
+  "preferred": [
+    "sandy loam",
+    "loam",
+    "clay loam"
+  ],
+  "avoid": [],
+  "status": "not_listed",
+  "note": "Silt loam is neither listed as preferred nor warned against for this crop, so it does not change the estimate."
+}

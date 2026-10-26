@@ -1,0 +1,13 @@
+{
+  "crop_id": "maize",
+  "soil": "sandy_loam",
+  "texture": "sandy loam",
+  "preferred": [
+    "sandy loam",
+    "loam",
+    "clay loam"
+  ],
+  "avoid": [],
+  "status": "preferred",
+  "note": "Sandy loam is a soil this crop does well on."
+}

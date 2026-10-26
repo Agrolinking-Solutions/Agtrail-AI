@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from app.clients.base import ClientResult
-from app.contracts.knowledge_base import CommodityMapping, HarvestEstimateBasis
+from app.contracts.knowledge_base import CommodityMapping, HarvestEstimateBasis, SoilMatchBasis
 from app.contracts.pis import CommodityForecast
 from app.services.harvest_estimate import build_estimate
 from tests.conftest import API_KEY, requires_db
@@ -26,8 +26,9 @@ def kb_fixture(name):
 
 
 class FakeKb:
-    def __init__(self, down=False):
+    def __init__(self, down=False, soil_down=False):
         self.down = down
+        self.soil_down = soil_down
 
     def harvest_estimate(self, crop_id):
         if self.down:
@@ -40,6 +41,12 @@ class FakeKb:
     def commodities(self):
         return ClientResult(value=CommodityMapping.model_validate(kb_fixture("commodities")))
 
+    def soil_match(self, crop_id, soil):
+        if self.down or self.soil_down:
+            return ClientResult(unavailable_reason="Knowledge Base timed out")
+        path = FIXTURES / "knowledge_base" / f"soil_match_{crop_id}_{soil.replace(' ', '_')}.json"
+        return ClientResult(value=SoilMatchBasis.model_validate(json.loads(path.read_text())))
+
 
 class FakePis:
     def __init__(self, down=False):
@@ -51,9 +58,9 @@ class FakePis:
         return ClientResult(value=CommodityForecast.model_validate(json.loads((FIXTURES / "pis" / "forecast_maize.json").read_text())))
 
 
-def estimate(crop_id="maize", area=0.33, planted=TODAY - timedelta(days=60), transplanted=None, kb=None, pis=None, crop="Maize"):
+def estimate(crop_id="maize", area=0.33, planted=TODAY - timedelta(days=60), transplanted=None, kb=None, pis=None, crop="Maize", soil=None):
     return build_estimate(crop_id=crop_id, crop_name=crop, area_ha=area, planted_on=planted, transplanted_on=transplanted,
-                          kb=kb or FakeKb(), pis=pis or FakePis(), today=TODAY)
+                          kb=kb or FakeKb(), pis=pis or FakePis(), today=TODAY, soil_type=soil)
 
 
 def test_the_amount_is_the_farm_size_times_the_typical_and_normal_yields():
@@ -240,3 +247,41 @@ def test_the_farm_summary_includes_the_estimate_for_the_newest_crop():
 
     assert out.harvest_estimate.crop_id == "cassava" and out.harvest_estimate.amount.area_ha == 0.5
     assert build_intelligence(uuid.uuid4(), "Kano", [], [], [], Both(), SummaryPis(), TODAY).harvest_estimate is None
+
+
+# ---- soil ----
+
+def test_no_soil_recorded_leaves_the_numbers_alone_and_says_so():
+    e = estimate(soil=None)
+    assert e.soil.status == "unknown" and "not taken into account" in e.soil.note and e.soil.effect == "none"
+
+
+@pytest.mark.parametrize("soil,status", [("sandy_loam", "preferred"), ("silty_loam", "not_listed"), ("Not recorded", "unknown")])
+def test_soils_that_are_not_warned_against_change_nothing(soil, status):
+    base, e = estimate(soil=None), estimate(soil=soil)
+    assert e.soil.status == status and e.soil.effect == "none"
+    assert e.amount.high_tonnes == base.amount.high_tonnes and e.amount.typical_tonnes == base.amount.typical_tonnes
+
+
+def test_a_soil_the_crop_does_badly_on_holds_the_high_end_at_typical():
+    base = estimate("soybean", soil=None, crop="Soybean")
+    e = estimate("soybean", soil="sandy", crop="Soybean")
+
+    assert e.soil.status == "avoid" and e.soil.effect == "high_capped_at_typical"
+    assert e.amount.high_tonnes == e.amount.typical_tonnes < base.amount.high_tonnes
+    assert e.amount.per_hectare.high == e.amount.per_hectare.typical
+    assert e.amount.low_tonnes == base.amount.low_tonnes
+    assert any("does badly on" in a for a in e.assumptions)
+
+
+def test_the_naira_value_follows_the_held_high_end():
+    base = estimate("soybean", soil=None, crop="Soybean")
+    e = estimate("soybean", soil="sandy", crop="Soybean")
+    if base.value and e.value:
+        assert e.value.high == e.value.typical < base.value.high
+
+
+def test_when_only_the_soil_check_is_down_the_estimate_still_arrives():
+    e = estimate(soil="sandy_loam", kb=FakeKb(soil_down=True))
+    assert e.status == "ok" and e.soil.status == "unknown" and "could not be checked" in e.soil.note
+    assert e.amount.high_tonnes == estimate(soil=None).amount.high_tonnes

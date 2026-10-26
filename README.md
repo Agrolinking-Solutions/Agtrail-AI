@@ -227,6 +227,8 @@ soybean) come from the Knowledge Base, `/v1/crops/{id}/harvest-estimate`, with t
 researched. Seven crops have one: maize, rice, cassava, soybean, cocoa, groundnut, sorghum. Rice and cassava
 get no naira value (no milling factor, no price series).
 
+**Soil.** The farm's `soil_type` (AgTrail's own words, such as `sandy_loam`) is compared with what the crop prefers, using the Knowledge Base's `/v1/crops/{id}/soil-match`. The estimate carries a `soil` block with the result. Only a soil the crop file says the crop does badly on (`avoid`) changes a number: the high end is held at the typical yield. A missing, unrecognised or unlisted soil never changes anything. Today only soybean on sand is sourced.
+
 ## Deploys and migrations
 
 The production platform redeploys on every merge to `main`. The web container
