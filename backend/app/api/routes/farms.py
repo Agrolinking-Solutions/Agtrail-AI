@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
@@ -12,12 +12,12 @@ from app.core.security import require_api_key
 from app.models.farm import Farm
 from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
-from app.models.ndvi import FarmNdviObservation, FarmNdviScene
+from app.models.ndvi import FarmNdviFrame, FarmNdviObservation, FarmNdviScene
 from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
 from app.schemas.harvest import FarmHarvestEstimateOut
 from app.schemas.intelligence import FarmIntelligenceOut
-from app.schemas.ndvi import CropHealthOut, NdviObservationOut
+from app.schemas.ndvi import CropHealthOut, NdviFrameOut, NdviFramesOut, NdviObservationOut
 from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
 from app.contracts.knowledge_base import RuleIssue
 from app.clients.knowledge_base import get_knowledge_base_client
@@ -29,6 +29,7 @@ from app.services.harvest_estimate import build_estimate
 from app.services.phases import phase_of
 from app.services.signal_engine import classify_issue
 from app.services.mapbox import fetch_area_view, fetch_boundary_satellite_image
+from app.services.ndvi_frames import read_png
 from app.services.sentinel import IMAGE_STYLES, fetch_farm_image, get_access_token
 
 router = APIRouter(
@@ -305,6 +306,45 @@ def get_harvest_estimate(
         soil_type=farm.soil_type,
     )
     return FarmHarvestEstimateOut(farm_id=str(farm.id), **estimate.model_dump())
+
+
+@router.get("/{farm_id}/ndvi-frames", response_model=NdviFramesOut)
+def list_ndvi_frames(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    The pictures of the farm's clear satellite passes, oldest first, to play as a timelapse. Each frame
+    is the NDVI picture of one pass with cloud pixels transparent. Frames are kept from the day the
+    farm started being recorded, and only for passes where at least half the farm was clear.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    rows = db.execute(
+        select(FarmNdviFrame).where(FarmNdviFrame.farm_id == farm.id).order_by(FarmNdviFrame.scene_date)
+    ).scalars().all()
+    frames = [
+        NdviFrameOut(scene_date=r.scene_date, ndvi_mean=r.ndvi_mean, clear_fraction=r.clear_fraction,
+                     image_path=f"/farms/{farm.id}/ndvi-frames/{r.scene_date.isoformat()}")
+        for r in rows
+    ]
+    return NdviFramesOut(farm_id=farm.id, count=len(frames), frames=frames)
+
+
+@router.get("/{farm_id}/ndvi-frames/{scene_date}")
+def get_ndvi_frame(farm_id: uuid.UUID, scene_date: date, db: Session = Depends(get_db)):
+    """One frame as a PNG. A frame never changes once kept, so it can be cached for a long time."""
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    frame = db.execute(
+        select(FarmNdviFrame).where(FarmNdviFrame.farm_id == farm.id, FarmNdviFrame.scene_date == scene_date)
+    ).scalar_one_or_none()
+    if frame is None:
+        raise HTTPException(status_code=404, detail="No frame for this farm on that date")
+    try:
+        data = read_png(frame.image_pointer)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"The picture could not be read from storage: {exc}")
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.get("/{farm_id}/ndvi-image")

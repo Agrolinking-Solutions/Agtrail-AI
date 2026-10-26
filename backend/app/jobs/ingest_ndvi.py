@@ -10,6 +10,7 @@ from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.models.farm import Farm
 from app.models.ndvi import FarmNdviObservation, FarmNdviScene
+from app.services.ndvi_frames import save_missing_frames
 from app.services.sentinel import default_window, fetch_farm_ndvi, fetch_farm_scenes, get_access_token
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
     explicit = start is not None and end is not None
     end = end or date.today()
 
-    summary = {"farms": 0, "scenes_written": 0, "farms_failed": 0}
+    summary = {"farms": 0, "scenes_written": 0, "farms_failed": 0, "frames_saved": 0, "frames_failed": 0}
     token = get_access_token()
 
     with SessionLocal() as db:
@@ -150,6 +151,10 @@ def ingest_scenes(start: date | None = None, end: date | None = None) -> dict:
             # Saved farm by farm: with hundreds of farms a run takes a long time, and
             # one that is cut off must keep what it already fetched.
             db.commit()
+            # The picture of each new clear pass, for the farm's timelapse. Never stops the run.
+            frames = save_missing_frames(db, farm, boundary_geojson, token)
+            summary["frames_saved"] += frames["saved"]
+            summary["frames_failed"] += frames["failed"]
             _progress("Scenes", index, len(farms))
 
     return summary

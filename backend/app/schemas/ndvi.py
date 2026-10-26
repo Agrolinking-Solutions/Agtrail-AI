@@ -36,3 +36,20 @@ class CropHealthOut(BaseModel):
     unusable_passes_last_30_days: int
     min_clear_fraction: float
     fresh_within_days: int
+
+
+class NdviFrameOut(BaseModel):
+    scene_date: date
+    ndvi_mean: float | None
+    clear_fraction: float
+    # Where to fetch the picture (a PNG with transparent cloud pixels), on this API.
+    image_path: str
+
+
+class NdviFramesOut(BaseModel):
+    farm_id: uuid.UUID
+    # Seen by the satellite, not worked out.
+    provenance: str = "observed"
+    count: int
+    # Oldest first, ready to play as a timelapse. Only passes where at least half the farm was clear.
+    frames: list[NdviFrameOut]
