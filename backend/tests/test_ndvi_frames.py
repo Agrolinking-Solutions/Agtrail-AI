@@ -192,3 +192,19 @@ def test_a_farm_whose_frames_keep_failing_is_left_after_two_attempts(db_session,
     result = save_missing_frames(db_session, farm_with_scenes, {"type": "Polygon"}, "token")
 
     assert result == {"saved": 0, "failed": 2} and len(bucket.renders) == 2
+
+
+def test_a_frame_is_written_without_a_head_check_first(monkeypatch):
+    from app.services import ndvi_frames
+
+    monkeypatch.setattr(ndvi_frames.settings, "S3_BUCKET", "aglens-images")
+    calls = []
+
+    class OnlyPut:
+        def put_object(self, **kw):
+            calls.append(("put", kw["Key"], kw["ContentType"]))
+
+    monkeypatch.setattr(ndvi_frames, "_get_s3_client", lambda: OnlyPut())
+
+    assert ndvi_frames.store_png(b"x", "ndvi-frames/f/2026-10-23.png") == "s3://aglens-images/ndvi-frames/f/2026-10-23.png"
+    assert calls == [("put", "ndvi-frames/f/2026-10-23.png", "image/png")]

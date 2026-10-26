@@ -317,3 +317,44 @@ def test_with_no_bucket_the_error_says_so_instead_of_asking_for_google_credentia
 
     with pytest.raises(RuntimeError, match="No storage bucket is configured"):
         image_archive.upload_image_bytes(b"photo", "abc123", "image/jpeg")
+
+
+def test_a_403_from_the_head_check_means_not_there_yet_so_the_file_is_written(monkeypatch):
+    """Our Garage bucket answers HEAD for a missing file with 403, not 404."""
+    from botocore.exceptions import ClientError
+
+    from app.services import image_archive
+
+    monkeypatch.setattr(image_archive.settings, "S3_BUCKET", "aglens-images")
+    written = {}
+
+    class Garage:
+        def head_object(self, **kw):
+            raise ClientError({"Error": {"Code": "403", "Message": "Forbidden"}}, "HeadObject")
+
+        def put_object(self, **kw):
+            written[kw["Key"]] = kw["Body"]
+
+    monkeypatch.setattr(image_archive, "_get_s3_client", lambda: Garage())
+
+    pointer = image_archive._upload_s3(b"picture", "farm-images/abc", "image/jpeg")
+
+    assert pointer == "s3://aglens-images/farm-images/abc" and written == {"farm-images/abc": b"picture"}
+
+
+def test_another_head_error_is_still_an_error(monkeypatch):
+    import pytest
+    from botocore.exceptions import ClientError
+
+    from app.services import image_archive
+
+    monkeypatch.setattr(image_archive.settings, "S3_BUCKET", "aglens-images")
+
+    class Broken:
+        def head_object(self, **kw):
+            raise ClientError({"Error": {"Code": "500", "Message": "boom"}}, "HeadObject")
+
+    monkeypatch.setattr(image_archive, "_get_s3_client", lambda: Broken())
+
+    with pytest.raises(ClientError):
+        image_archive._upload_s3(b"picture", "farm-images/abc", "image/jpeg")

@@ -63,7 +63,9 @@ def _upload_s3(data: bytes, key: str, content_type: str) -> str:
     try:
         client.head_object(Bucket=settings.S3_BUCKET, Key=key)
     except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") not in ("404", "NoSuchKey", "NotFound"):
+        # Our Garage bucket answers 403 (not 404) to a HEAD for a file that is not there yet. Treat it as
+        # "not there" and write: if we really cannot write, the put below fails with the real reason.
+        if exc.response.get("Error", {}).get("Code") not in ("404", "403", "NoSuchKey", "NotFound", "Forbidden"):
             raise
         client.put_object(Bucket=settings.S3_BUCKET, Key=key, Body=data, ContentType=content_type)
     return f"s3://{settings.S3_BUCKET}/{key}"
