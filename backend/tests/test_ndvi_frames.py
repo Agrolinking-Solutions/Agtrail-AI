@@ -135,3 +135,60 @@ def test_the_frame_picture_masks_cloud_pixels_per_pixel():
 
     assert '"SCL"' in FRAME_EVALSCRIPT and "s.dataMask * clear" in FRAME_EVALSCRIPT
     assert str(list(CLOUDY_SCL_CLASSES)) in FRAME_EVALSCRIPT
+
+
+# ---- the storage is checked before anything is rendered ----
+
+def test_a_bucket_we_cannot_use_is_reported_before_any_render(db_session, farm_with_scenes, monkeypatch):
+    from app.services import ndvi_frames
+
+    monkeypatch.setattr(ndvi_frames.settings, "S3_BUCKET", "aglens-images")
+
+    class Denied:
+        def put_object(self, **kw):
+            raise RuntimeError("An error occurred (AccessDenied) when calling the PutObject operation: Access Denied")
+
+    monkeypatch.setattr(ndvi_frames, "_get_s3_client", lambda: Denied())
+
+    problem = ndvi_frames.check_storage()
+    assert problem and "AccessDenied" in problem
+
+
+def test_a_working_bucket_passes_the_check(monkeypatch):
+    from app.services import ndvi_frames
+
+    monkeypatch.setattr(ndvi_frames.settings, "S3_BUCKET", "aglens-images")
+    store = {}
+
+    class Fine:
+        def put_object(self, **kw):
+            store[kw["Key"]] = kw["Body"]
+
+        def get_object(self, **kw):
+            import io
+            return {"Body": io.BytesIO(store[kw["Key"]])}
+
+    monkeypatch.setattr(ndvi_frames, "_get_s3_client", lambda: Fine())
+    assert ndvi_frames.check_storage() is None
+
+
+def test_the_backfill_renders_nothing_when_the_bucket_is_unusable(db_session, farm_with_scenes, monkeypatch):
+    from app.jobs import backfill_ndvi_frames as job
+    from app.services import ndvi_frames
+
+    monkeypatch.setattr(ndvi_frames.settings, "S3_BUCKET", "aglens-images")
+    monkeypatch.setattr(job, "check_storage", lambda: "The bucket cannot be written to and read from: AccessDenied")
+    monkeypatch.setattr(job, "get_access_token", lambda: pytest.fail("must not even ask Copernicus"))
+
+    summary = job.backfill_ndvi_frames()
+
+    assert summary["frames_saved"] == 0 and "AccessDenied" in summary["storage_problem"]
+
+
+def test_a_farm_whose_frames_keep_failing_is_left_after_two_attempts(db_session, farm_with_scenes, bucket):
+    from app.services.ndvi_frames import save_missing_frames
+
+    bucket.fail_on.update({date(2026, 10, 21), date(2026, 10, 16), date(2026, 10, 1)})
+    result = save_missing_frames(db_session, farm_with_scenes, {"type": "Polygon"}, "token")
+
+    assert result == {"saved": 0, "failed": 2} and len(bucket.renders) == 2
