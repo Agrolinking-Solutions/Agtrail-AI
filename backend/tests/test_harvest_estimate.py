@@ -127,7 +127,7 @@ def test_cocoa_is_per_year_with_no_single_harvest_date():
 
 @pytest.mark.parametrize("kwargs, code", [
     ({"crop_id": None}, "no_crop"),
-    ({"crop_id": "yam", "crop": "Yam"}, "no_research"),
+    ({"crop_id": "onion", "crop": "Onion"}, "no_research"),
     ({"area": None}, "no_area"),
     ({"area": 0}, "no_area"),
     ({"kb": FakeKb(down=True)}, "estimate_unavailable"),
@@ -203,7 +203,7 @@ def test_the_endpoint_says_what_is_missing_instead_of_guessing(client, db_sessio
     no_area = _get(client, _farm(db_session, None, suffix="he2").id).json()
     no_cycle = _get(client, _farm(db_session, 0.5, suffix="he3", with_cycle=False).id).json()
     no_crop = _get(client, _farm(db_session, 0.5, crop_id=None, crop_raw="Dragon fruit", suffix="he4").id).json()
-    no_research = _get(client, _farm(db_session, 0.5, crop_id="yam", crop_raw="Yam", suffix="he5").id).json()
+    no_research = _get(client, _farm(db_session, 0.5, crop_id="onion", crop_raw="Onion", suffix="he5").id).json()
 
     assert (no_area["reason_code"], no_cycle["reason_code"], no_crop["reason_code"], no_research["reason_code"]) == ("no_area", "no_cycle", "no_crop", "no_research")
     assert all(b["amount"] is None and b["value"] is None for b in (no_area, no_cycle, no_crop, no_research))
@@ -285,3 +285,20 @@ def test_when_only_the_soil_check_is_down_the_estimate_still_arrives():
     e = estimate(soil="sandy_loam", kb=FakeKb(soil_down=True))
     assert e.status == "ok" and e.soil.status == "unknown" and "could not be checked" in e.soil.note
     assert e.amount.high_tonnes == estimate(soil=None).amount.high_tonnes
+
+
+# ---- yam, tomato and pepper (27 Oct 2026) ----
+
+def test_yam_has_a_window_and_the_flagged_confidence():
+    e = estimate("yam", area=1.0, crop="Yam")
+    assert e.status == "ok" and e.timing.earliest == TODAY - timedelta(days=60) + timedelta(days=180)
+    assert e.confidence <= 0.5 and e.amount.yield_basis == "fresh tubers"
+    assert e.amount.per_hectare.typical == 8.15 and e.amount.per_hectare.high == 16.3
+
+
+@pytest.mark.parametrize("crop", ["tomato", "pepper"])
+def test_a_crop_whose_rules_have_no_latest_date_says_so_instead_of_inventing_one(crop):
+    e = estimate(crop, area=0.5, crop=crop.title(), planted=TODAY - timedelta(days=30), transplanted=TODAY - timedelta(days=20))
+    assert e.status == "ok" and e.timing is None
+    assert "no harvest window" in e.timing_note.lower() and "tree" not in e.timing_note.lower() and "every year" not in e.timing_note
+    assert e.amount.high_tonnes > e.amount.typical_tonnes > e.amount.low_tonnes

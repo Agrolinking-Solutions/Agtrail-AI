@@ -225,6 +225,18 @@
       "title": "Sources",
       "type": "array"
     },
+    "timing_note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timing Note"
+    },
     "yield_basis": {
       "anyOf": [
         {

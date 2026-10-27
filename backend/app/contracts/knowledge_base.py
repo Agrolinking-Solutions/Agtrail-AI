@@ -175,6 +175,8 @@ class HarvestEstimateBasis(_Contract):
     yield_basis: Optional[str] = None
     yield_t_per_ha: Optional[YieldPerHectare] = None
     harvest_window: Optional[HarvestWindow] = None
+    # Why there is no harvest_window, when there is none (said in place of dates).
+    timing_note: Optional[str] = None
     confidence: Optional[float] = None
     method: Optional[str] = None
     caveats: list[str] = Field(default_factory=list)
