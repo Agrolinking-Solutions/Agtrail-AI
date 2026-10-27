@@ -172,6 +172,13 @@ def main() -> None:
     logger.info("NDVI scene ingestion finished: %s", scene_summary)
     summary = ingest_ndvi()
     logger.info("NDVI ingestion finished: %s", summary)
+    # Radar sees through cloud. It is extra: whatever happens here, the optical run above stands.
+    try:
+        from app.jobs.ingest_radar import ingest_radar
+
+        logger.info("Radar ingestion finished: %s", ingest_radar())
+    except Exception as exc:
+        logger.warning("Radar ingestion failed and was skipped: %s", exc)
 
 
 if __name__ == "__main__":
