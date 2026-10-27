@@ -59,3 +59,22 @@ class FarmNdviFrame(Base):
     # s3://bucket/key, never a link: the files are private and are served through the API.
     image_pointer: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FarmRadarScene(Base):
+    """One Sentinel-1 radar pass over a farm. Radar is not stopped by cloud, so it fills the gaps the
+    optical satellite leaves in the rains. Backscatter in decibels; rvi is the radar vegetation index."""
+
+    __tablename__ = "farm_radar_scenes"
+    __table_args__ = (UniqueConstraint("farm_id", "scene_date", name="uq_radar_scene_farm_date"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    farm_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("farms.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    scene_date: Mapped[date] = mapped_column(Date, nullable=False)
+    vv_db: Mapped[float] = mapped_column(Float, nullable=False)
+    vh_db: Mapped[float] = mapped_column(Float, nullable=False)
+    rvi: Mapped[float] = mapped_column(Float, nullable=False)
+    polygon_pixels: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
@@ -12,12 +12,12 @@ from app.core.security import require_api_key
 from app.models.farm import Farm
 from app.models.crop_cycle import CropCycle
 from app.models.farm_operation import FarmOperation
-from app.models.ndvi import FarmNdviFrame, FarmNdviObservation, FarmNdviScene
+from app.models.ndvi import FarmNdviFrame, FarmNdviObservation, FarmNdviScene, FarmRadarScene
 from app.models.operation_signal import OperationSignal
 from app.schemas.location import FarmLocationOut
 from app.schemas.harvest import FarmHarvestEstimateOut
 from app.schemas.intelligence import FarmIntelligenceOut
-from app.schemas.ndvi import CropHealthOut, NdviFrameOut, NdviFramesOut, NdviObservationOut
+from app.schemas.ndvi import CropHealthOut, NdviFrameOut, NdviFramesOut, NdviObservationOut, RadarLatestOut, RadarOut, RadarPassOut
 from app.schemas.signals import FarmSignalsOut, OperationSignalOut, RuleIssueOut
 from app.contracts.knowledge_base import RuleIssue
 from app.clients.knowledge_base import get_knowledge_base_client
@@ -306,6 +306,41 @@ def get_harvest_estimate(
         soil_type=farm.soil_type,
     )
     return FarmHarvestEstimateOut(farm_id=str(farm.id), **estimate.model_dump())
+
+
+RADAR_FRESH_DAYS = 14
+RADAR_SERIES_DAYS = 120
+RADAR_NOTE = (
+    "Radar sees through cloud and works at night, so it reports on days the optical satellite cannot. It measures how "
+    "the ground and plants scatter radar (VV and VH in decibels, and rvi, a radar vegetation index), not greenness, "
+    "and a pixel is about 10 m. Read the change from pass to pass; one value on its own says little."
+)
+
+
+@router.get("/{farm_id}/radar", response_model=RadarOut)
+def get_farm_radar(farm_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Sentinel-1 radar passes over the farm: the latest and the last 120 days, oldest first. Unlike the
+    crop health reading, radar is not blocked by cloud, so it keeps reporting through the rains. It is
+    a different measurement from NDVI, so it is shown beside it, never mixed into it.
+    """
+    farm = resolve_farm(db, farm_id)
+    if farm is None:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    today = datetime.now(timezone.utc).date()
+    rows = db.execute(
+        select(FarmRadarScene).where(FarmRadarScene.farm_id == farm.id, FarmRadarScene.scene_date >= today - timedelta(days=RADAR_SERIES_DAYS))
+        .order_by(FarmRadarScene.scene_date)
+    ).scalars().all()
+    series = [RadarPassOut(scene_date=r.scene_date, vv_db=r.vv_db, vh_db=r.vh_db, rvi=r.rvi, polygon_pixels=r.polygon_pixels) for r in rows]
+    if not rows:
+        return RadarOut(farm_id=farm.id, status="no_data", as_of=today, fresh_within_days=RADAR_FRESH_DAYS, latest=None, series=[], note=RADAR_NOTE)
+    newest = rows[-1]
+    age = (today - newest.scene_date).days
+    latest = RadarLatestOut(scene_date=newest.scene_date, vv_db=newest.vv_db, vh_db=newest.vh_db, rvi=newest.rvi,
+                            polygon_pixels=newest.polygon_pixels, age_days=age)
+    return RadarOut(farm_id=farm.id, status="fresh" if age <= RADAR_FRESH_DAYS else "stale", as_of=today,
+                    fresh_within_days=RADAR_FRESH_DAYS, latest=latest, series=series, note=RADAR_NOTE)
 
 
 @router.get("/{farm_id}/ndvi-frames", response_model=NdviFramesOut)

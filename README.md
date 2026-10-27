@@ -261,3 +261,12 @@ Every clear satellite pass over a mapped farm (at least half the farm clear) get
 - `GET /farms/{id}/ndvi-frames/{date}`: the PNG (cached for a year; frames never change).
 
 Frames are 10 m Sentinel-2 pictures, so a small farm is a few dozen pixels. They show crop health changing, not individual rows. They need `S3_BUCKET` to be set.
+
+
+## Sentinel-1 radar
+
+`python -m app.jobs.ingest_radar [--days N]` saves each Sentinel-1 radar pass over every mapped farm: the farm's mean backscatter (VV and VH, in decibels) and a radar vegetation index. It runs after the NDVI job in the daily task, and a failure is logged and never stops that job. Radar is not blocked by cloud or night, so it keeps reporting through the rains when the optical satellite cannot. It is a different measurement from NDVI (it responds to plant structure, moisture and the state of the ground, not greenness), so it is served separately and read as a trend.
+
+- `GET /farms/{id}/radar`: status (fresh within 14 days, stale or no_data), the latest pass and the last 120 days oldest first.
+
+Pixels are about 10 m, like the optical satellite. This is cloud-proof, not high-resolution.

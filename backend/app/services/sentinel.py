@@ -6,7 +6,10 @@ on the server side, so we never download raw imagery. Farms are small (often
 only 10 to 30 Sentinel-2 pixels), so a per-farm mean is what we actually need.
 """
 
+from __future__ import annotations
+
 import json
+import math
 import logging
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -144,6 +147,90 @@ function evaluatePixel(s) {
 }
 """ % list(CLOUDY_SCL_CLASSES)
 
+# Sentinel-1 radar (C band). Backscatter is asked for as linear gamma0 so that the farm's mean is an honest
+# average (decibels are converted afterwards). dataMask keeps pixels outside the farm out of the count.
+RADAR_EVALSCRIPT = """
+//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["VV", "VH", "dataMask"] }],
+    output: [
+      { id: "vv", bands: 1 },
+      { id: "vh", bands: 1 },
+      { id: "dataMask", bands: 1 }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  return { vv: [s.VV], vh: [s.VH], dataMask: [s.dataMask] };
+}
+"""
+# Terrain-corrected gamma0, the standard for comparing passes over land; no speckle filter, because
+# averaging over the whole farm does that job.
+RADAR_PROCESSING = {
+    "backCoeff": "GAMMA0_TERRAIN",
+    "orthorectify": True,
+    "demInstance": "COPERNICUS_30",
+    "speckleFilter": {"type": "NONE"},
+}
+
+
+def fetch_farm_radar(boundary_geojson: dict, start: date, end: date, token: str) -> list[RadarScene]:
+    """Every Sentinel-1 pass in the window, one entry per day, with the farm's mean backscatter."""
+    time_range = {
+        "from": datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+        "to": datetime.combine(end, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+    }
+    body = {
+        "input": {
+            "bounds": {"geometry": boundary_geojson, "properties": {"crs": SCENE_EPSG4326}},
+            "data": [{
+                "type": "sentinel-1-grd",
+                "dataFilter": {"timeRange": time_range, "acquisitionMode": "IW", "polarization": "DV", "resolution": "HIGH"},
+                "processing": RADAR_PROCESSING,
+            }],
+        },
+        "aggregation": {
+            "timeRange": time_range,
+            "aggregationInterval": {"of": "P1D"},
+            "evalscript": RADAR_EVALSCRIPT,
+            "resx": SCENE_RESOLUTION_DEG,
+            "resy": SCENE_RESOLUTION_DEG,
+        },
+        "calculations": {"default": {}},
+    }
+    response = _post_with_retries(
+        STATISTICS_URL,
+        content=json.dumps(body),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        timeout=120.0,
+    )
+    response.raise_for_status()
+    return parse_radar_response(response.json())
+
+
+def parse_radar_response(payload: dict) -> list[RadarScene]:
+    scenes = []
+    for item in payload.get("data", []):
+        outputs = item["outputs"]
+        vv_stats = outputs["vv"]["bands"]["B0"]["stats"]
+        vh_stats = outputs["vh"]["bands"]["B0"]["stats"]
+        pixels = (vv_stats.get("sampleCount") or 0) - (vv_stats.get("noDataCount") or 0)
+        vv, vh = vv_stats.get("mean"), vh_stats.get("mean")
+        # A day with no pixel inside the farm, or no usable backscatter, is skipped.
+        if pixels <= 0 or vv is None or vh is None or float(vv) <= 0 or float(vh) <= 0:
+            continue
+        vv, vh = float(vv), float(vh)
+        scenes.append(RadarScene(
+            scene_date=datetime.fromisoformat(item["interval"]["from"].replace("Z", "+00:00")).date(),
+            vv_db=round(10 * math.log10(vv), 3),
+            vh_db=round(10 * math.log10(vh), 3),
+            rvi=round(4 * vh / (vv + vh), 4),
+            polygon_pixels=int(pixels),
+        ))
+    return scenes
+
+
 IMAGE_STYLES = {"ndvi": NDVI_IMAGE_EVALSCRIPT, "true-color": TRUE_COLOR_EVALSCRIPT}
 
 # The NDVI picture for one pass, kept as a frame of the farm's timelapse. Cloud, cloud shadow and
@@ -169,6 +256,19 @@ class NdviPeriod:
     period_end: date
     ndvi_mean: float
     valid_pixel_count: int
+
+
+@dataclass(frozen=True)
+class RadarScene:
+    """One Sentinel-1 radar pass over one farm. Radar sees through cloud and at night, so it answers on
+    days the optical satellite cannot. vv_db and vh_db are the farm's mean backscatter in decibels;
+    rvi is the radar vegetation index (4 VH / (VV + VH), 0 to about 1) computed from the linear means."""
+
+    scene_date: date
+    vv_db: float
+    vh_db: float
+    rvi: float
+    polygon_pixels: int
 
 
 @dataclass(frozen=True)

@@ -59,3 +59,31 @@ class NdviFramesOut(BaseModel):
     count: int
     # Oldest first, ready to play as a timelapse. Only passes where at least half the farm was clear.
     frames: list[NdviFrameOut]
+
+
+class RadarPassOut(BaseModel):
+    scene_date: date
+    # Mean backscatter over the farm in decibels, for the two polarisations.
+    vv_db: float
+    vh_db: float
+    # Radar vegetation index, 4 VH / (VV + VH), 0 to about 1: a rough sign of plant cover and structure.
+    rvi: float
+    polygon_pixels: int
+
+
+class RadarLatestOut(RadarPassOut):
+    age_days: int
+
+
+class RadarOut(BaseModel):
+    farm_id: uuid.UUID
+    # Seen by the satellite, not worked out.
+    provenance: str = "observed"
+    # fresh | stale | no_data
+    status: str
+    as_of: date
+    fresh_within_days: int
+    latest: RadarLatestOut | None
+    # The last 120 days, oldest first.
+    series: list[RadarPassOut]
+    note: str
