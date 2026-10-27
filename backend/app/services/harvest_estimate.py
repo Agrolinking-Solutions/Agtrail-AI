@@ -38,9 +38,9 @@ def _round_naira(value: float) -> float:
     return float(round(value, -3))
 
 
-def _timing(window, planted_on: Optional[date], transplanted_on: Optional[date], today: date):
+def _timing(window, planted_on: Optional[date], transplanted_on: Optional[date], today: date, no_window_note: Optional[str] = None):
     if window is None:
-        return None, "This crop bears every year, so there is no single harvest date."
+        return None, no_window_note or "This crop bears every year, so there is no single harvest date."
     reference = transplanted_on if window.after == "transplanting" else planted_on
     if reference is None:
         what = "transplanting" if window.after == "transplanting" else "planting"
@@ -111,7 +111,7 @@ def build_estimate(
         amount.per_hectare.high = amount.per_hectare.typical
         soil.effect = "high_capped_at_typical"
         assumptions.append(f"The farm's soil ({soil.texture}) is one this crop does badly on, so the high end is held at the typical yield.")
-    timing, timing_note = _timing(basis.harvest_window, planted_on, transplanted_on, today)
+    timing, timing_note = _timing(basis.harvest_window, planted_on, transplanted_on, today, basis.timing_note)
     value, value_note = _value(crop_id, basis, amount, kb, pis, today)
 
     return HarvestEstimateOut(

@@ -332,7 +332,7 @@ def test_a_harvest_estimate_is_read_cached_and_a_crop_without_research_says_so()
 
     assert first.ok and first.value.available and first.value.yield_t_per_ha.typical == 2.03 and len(server.requests) == 1
     assert server.requests[0].url.path == "/v1/crops/maize/harvest-estimate"
-    none = HarvestEstimateBasis.model_validate(fixture("harvest_estimate_yam"))
+    none = HarvestEstimateBasis.model_validate(fixture("harvest_estimate_onion"))
     assert none.available is False and none.yield_t_per_ha is None and none.reason
 
 

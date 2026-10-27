@@ -1,0 +1,45 @@
+{
+  "crop_id": "pepper",
+  "available": true,
+  "as_of": "2026-10-27",
+  "per": "season",
+  "yield_basis": "fresh green fruit, added up over the whole harvest period",
+  "yield_t_per_ha": {
+    "typical": 7.37,
+    "normal_low": 1.0,
+    "normal_high": 10.0,
+    "national_recent_low": 7.37,
+    "national_recent_high": 7.42,
+    "ruleset_high": 10.0
+  },
+  "harvest_window": null,
+  "confidence": 0.4,
+  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset). The high end is that ruleset's best case, capped at twice the typical yield, so it stays close to what farms really get (CEO decision, 25 Oct 2026). The harvest window is the expected window in the crop's timing rules, where they give one. The range is what is normal for a farm, not a forecast for this one.",
+  "caveats": [
+    "National averages hide the spread between farms, so a single farm can be well outside the typical figure.",
+    "FAO flags the 2024 figure for this crop as its own estimate (flag E), not a figure reported by Nigeria. It is weaker evidence than the figures for maize or soybean.",
+    "Not a prediction for this farm: it does not know this season's rain, soil, seed or care.",
+    "The high end is capped at twice the typical yield (10.0 t/ha). The ruleset's own best case is 10.0 t/ha, which a well-run farm can reach but few farms do.",
+    "FAO's pepper figure barely changes (7.4 to 7.6 t/ha for ten years), which suggests it is a modelled value rather than a survey result.",
+    "The yield is the total picked over the whole harvest period, not one picking."
+  ],
+  "sources": [
+    {
+      "title": "FAOSTAT, Production: Crops and livestock products, Nigeria national yield (bulk download, Africa)",
+      "publisher": "FAO",
+      "url": "https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_Africa.zip",
+      "figure": "7.37 t/ha in 2024 (FAO estimate, flag E); 7.37 to 7.42 t/ha across 2020 to 2024",
+      "year": 2024,
+      "opened": "2026-10-27"
+    },
+    {
+      "title": "AgTrail Master Agronomist & Validator Ruleset, Pepper (Rodo / Tatashe / Sombo), yield validation",
+      "publisher": "Agrolinking Solutions Ltd. (CEO, acting as agronomist)",
+      "url": null,
+      "figure": "standard range 1.0 to 10.0 t/ha",
+      "year": 2026,
+      "opened": "2026-10-27"
+    }
+  ],
+  "timing_note": "The crop rules give the earliest sensible harvest (60 days after transplanting) but no latest date, because peppers are picked over several months, so no harvest window is shown."
+}
