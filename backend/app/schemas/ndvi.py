@@ -50,6 +50,12 @@ class NdviFramesOut(BaseModel):
     farm_id: uuid.UUID
     # Seen by the satellite, not worked out.
     provenance: str = "observed"
+    # Every frame covers exactly this box, [west, south, east, north] in longitude and latitude, and is
+    # stretched to a square picture to fit it. Null when the farm has no boundary.
+    bbox: list[float] | None = None
+    # The same box as four corners in the order a map image layer takes them:
+    # top-left, top-right, bottom-right, bottom-left, each [longitude, latitude].
+    corners: list[list[float]] | None = None
     count: int
     # Oldest first, ready to play as a timelapse. Only passes where at least half the farm was clear.
     frames: list[NdviFrameOut]
