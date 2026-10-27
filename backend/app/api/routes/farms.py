@@ -326,7 +326,15 @@ def list_ndvi_frames(farm_id: uuid.UUID, db: Session = Depends(get_db)):
                      image_path=f"/farms/{farm.id}/ndvi-frames/{r.scene_date.isoformat()}")
         for r in rows
     ]
-    return NdviFramesOut(farm_id=farm.id, count=len(frames), frames=frames)
+    bbox = corners = None
+    boundary = db.execute(select(func.ST_AsGeoJSON(Farm.boundary)).where(Farm.id == farm.id)).scalar_one()
+    if boundary:
+        ring = json.loads(boundary)["coordinates"][0]
+        west, east = min(p[0] for p in ring), max(p[0] for p in ring)
+        south, north = min(p[1] for p in ring), max(p[1] for p in ring)
+        bbox = [west, south, east, north]
+        corners = [[west, north], [east, north], [east, south], [west, south]]
+    return NdviFramesOut(farm_id=farm.id, bbox=bbox, corners=corners, count=len(frames), frames=frames)
 
 
 @router.get("/{farm_id}/ndvi-frames/{scene_date}")

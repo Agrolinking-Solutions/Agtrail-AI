@@ -208,3 +208,21 @@ def test_a_frame_is_written_without_a_head_check_first(monkeypatch):
 
     assert ndvi_frames.store_png(b"x", "ndvi-frames/f/2026-10-23.png") == "s3://aglens-images/ndvi-frames/f/2026-10-23.png"
     assert calls == [("put", "ndvi-frames/f/2026-10-23.png", "image/png")]
+
+
+def test_the_frame_list_gives_the_box_the_pictures_cover_so_a_map_can_place_them(client, db_session, farm_with_scenes, bucket):
+    from geoalchemy2 import WKTElement
+
+    farm_with_scenes.boundary = WKTElement("POLYGON((3.90 7.60, 3.92 7.60, 3.92 7.63, 3.90 7.63, 3.90 7.60))", srid=4326)
+    farm_with_scenes.boundary_mapped = True
+    db_session.commit()
+
+    body = client.get(f"/farms/{farm_with_scenes.id}/ndvi-frames", headers={"X-API-Key": API_KEY}).json()
+
+    assert body["bbox"] == [3.90, 7.60, 3.92, 7.63]
+    assert body["corners"] == [[3.90, 7.63], [3.92, 7.63], [3.92, 7.60], [3.90, 7.60]]
+
+
+def test_a_farm_without_a_boundary_has_no_box(client, db_session, farm_with_scenes, bucket):
+    body = client.get(f"/farms/{farm_with_scenes.id}/ndvi-frames", headers={"X-API-Key": API_KEY}).json()
+    assert body["bbox"] is None and body["corners"] is None
