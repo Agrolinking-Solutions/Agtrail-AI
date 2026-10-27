@@ -69,8 +69,8 @@ def test_the_amount_is_the_farm_size_times_the_typical_and_normal_yields():
     assert e.status == "ok" and e.provenance == "estimated"
     a = e.amount
     assert (a.area_ha, a.per, a.yield_basis) == (0.33, "season", "grain")
-    assert (a.typical_tonnes, a.low_tonnes, a.high_tonnes) == (round(0.33 * 2.03, 2), round(0.33 * 0.8, 2), round(0.33 * 5.0, 2))
-    assert (a.per_hectare.typical, a.per_hectare.low, a.per_hectare.high) == (2.03, 0.8, 5.0)
+    assert (a.typical_tonnes, a.low_tonnes, a.high_tonnes) == (round(0.33 * 2.03, 2), round(0.33 * 0.8, 2), round(0.33 * 3.04, 2))
+    assert (a.per_hectare.typical, a.per_hectare.low, a.per_hectare.high) == (2.03, 0.8, 3.04)
     assert a.low_tonnes < a.typical_tonnes < a.high_tonnes
 
 
@@ -122,7 +122,7 @@ def test_cocoa_is_per_year_with_no_single_harvest_date():
     e = estimate("cocoa", area=2.0, crop="Cocoa")
 
     assert e.amount.per == "year" and e.amount.yield_basis == "dry beans" and e.timing is None and "every year" in e.timing_note
-    assert (e.amount.typical_tonnes, e.amount.low_tonnes, e.amount.high_tonnes) == (0.54, 0.2, 3.0)
+    assert (e.amount.typical_tonnes, e.amount.low_tonnes, e.amount.high_tonnes) == (0.54, 0.2, 0.82)
 
 
 @pytest.mark.parametrize("kwargs, code", [
@@ -293,7 +293,7 @@ def test_yam_has_a_window_and_the_flagged_confidence():
     e = estimate("yam", area=1.0, crop="Yam")
     assert e.status == "ok" and e.timing.earliest == TODAY - timedelta(days=60) + timedelta(days=180)
     assert e.confidence <= 0.5 and e.amount.yield_basis == "fresh tubers"
-    assert e.amount.per_hectare.typical == 8.15 and e.amount.per_hectare.high == 16.3
+    assert e.amount.per_hectare.typical == 8.15 and e.amount.per_hectare.high == 12.23
 
 
 @pytest.mark.parametrize("crop", ["tomato", "pepper"])

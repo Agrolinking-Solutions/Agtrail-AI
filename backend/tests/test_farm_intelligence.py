@@ -180,7 +180,7 @@ def test_the_endpoint_returns_the_summary_and_a_404_for_an_unknown_farm(client, 
     farm = Farm(farmer_id=farmer.id, name="Test Farm", agtrail_farm_id="AGT-INTEL-1")
     db_session.add(farm)
     db_session.flush()
-    db_session.add(CropCycle(farm_id=farm.id, agtrail_cycle_id="CYC-INTEL-1", crop_raw="Maize", crop_id="maize", planted_date=date.today() - timedelta(days=30), status="active"))
+    db_session.add(CropCycle(farm_id=farm.id, agtrail_cycle_id="CYC-INTEL-1", crop_raw="Maize", crop_id="maize", planted_date=datetime.now(timezone.utc).date() - timedelta(days=30), status="active"))
     db_session.commit()
     app.dependency_overrides[knowledge_base] = lambda: FakeKb()
     app.dependency_overrides[pis] = lambda: FakePis()

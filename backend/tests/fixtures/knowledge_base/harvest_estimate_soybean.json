@@ -7,7 +7,7 @@
   "yield_t_per_ha": {
     "typical": 1.02,
     "normal_low": 0.7,
-    "normal_high": 2.04,
+    "normal_high": 1.53,
     "national_recent_low": 1.02,
     "national_recent_high": 1.2,
     "ruleset_high": 3.0
@@ -18,12 +18,12 @@
     "max_days": 120
   },
   "confidence": 0.5,
-  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset; for soybean, the IITA-based range). The high end is that ruleset's best case, capped at twice the typical yield, so it stays close to what farms really get (CEO decision, 25 Oct 2026). The harvest window is the expected window in the crop's timing rules. The range is what is normal for a farm, not a forecast for this one.",
+  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset; for soybean, the IITA-based range). The high end is that ruleset's best case, capped at 1.5 times the typical yield, so it stays close to what farms really get (CEO decision, 28 Oct 2026; it was twice the typical yield from 25 to 28 Oct). The harvest window is the expected window in the crop's timing rules. The range is what is normal for a farm, not a forecast for this one.",
   "caveats": [
     "National averages hide the spread between farms, so a single farm can be well outside the typical figure.",
     "FAO's national figures for Nigeria are compiled from national reports and FAO estimates and move little from year to year.",
     "Not a prediction for this farm: it does not know this season's rain, soil, seed or care.",
-    "The high end is capped at twice the typical yield (2.04 t/ha). The ruleset's own best case is 3.0 t/ha, which a well-run farm can reach but few farms do."
+    "The high end is capped at 1.5 times the typical yield (1.53 t/ha). The ruleset's own best case is 3.0 t/ha, which a well-run farm can reach but few farms do."
   ],
   "sources": [
     {
