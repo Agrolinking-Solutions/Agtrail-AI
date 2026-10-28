@@ -7,7 +7,7 @@
   "yield_t_per_ha": {
     "typical": 8.15,
     "normal_low": 5.0,
-    "normal_high": 16.3,
+    "normal_high": 12.23,
     "national_recent_low": 7.9,
     "national_recent_high": 8.19,
     "ruleset_high": 25.0
@@ -18,12 +18,12 @@
     "max_days": 270
   },
   "confidence": 0.5,
-  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset). The high end is that ruleset's best case, capped at twice the typical yield, so it stays close to what farms really get (CEO decision, 25 Oct 2026). The harvest window is the expected window in the crop's timing rules, where they give one. The range is what is normal for a farm, not a forecast for this one.",
+  "method": "Typical is the FAO national average for Nigeria in 2024. The low end is the crop's normal low from the yield checks (the CEO's ruleset). The high end is that ruleset's best case, capped at 1.5 times the typical yield, so it stays close to what farms really get (CEO decision, 28 Oct 2026; it was twice the typical yield from 25 to 28 Oct). The harvest window is the expected window in the crop's timing rules, where they give one. The range is what is normal for a farm, not a forecast for this one.",
   "caveats": [
     "National averages hide the spread between farms, so a single farm can be well outside the typical figure.",
     "FAO flags the 2024 figure for this crop as its own estimate (flag E), not a figure reported by Nigeria. It is weaker evidence than the figures for maize or soybean.",
     "Not a prediction for this farm: it does not know this season's rain, soil, seed or care.",
-    "The high end is capped at twice the typical yield (16.3 t/ha). The ruleset's own best case is 25.0 t/ha, which a well-run farm can reach but few farms do.",
+    "The high end is capped at 1.5 times the typical yield (12.23 t/ha). The ruleset's own best case is 25.0 t/ha, which a well-run farm can reach but few farms do.",
     "The FAO figure for yam is an FAO estimate for 2024; only the older yam figures (2019 and before) were reported by Nigeria itself."
   ],
   "sources": [
